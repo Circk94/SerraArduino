@@ -23,10 +23,13 @@ DHT dht2(DHT2PIN, DHTTYPE);
 //Initialize LCD display
 LiquidCrystal_I2C lcd(0x3F, 16, 2); // I2C address 0x3F, 16 column and 2 rows
 
-//matrice di pulsanti usata come tastierino
+//Mini JoyStick utilizzato per navigare tra i menù
 const int matrixGrade = 4;
-int pinRighe[matrixGrade] = {12, 11, 10, 9};
-int pinColonne[matrixGrade] = {8, 7, 6, 5};
+int pinUP = 5;
+int pinDWN = 6;
+int pinLFT = 7;
+int pinRIGHT = 8;
+int pinMID = 9;
 const String cmdUP = "UP";
 const String cmdDOWN = "DN";
 const String cmdRIGHT = "R";
@@ -160,12 +163,11 @@ void setup() {
   digitalWrite(HEATERPIN, LOW);
 
   //Inizializzo i pin digitali utilizzati per la lettura della matrice di pulsanti
-  for(int i = 0; i < matrixGrade; i++){
-    pinMode(pinColonne[i], OUTPUT);
-  }
-  for(int i = 0; i < matrixGrade; i++){
-    pinMode(pinRighe[i], INPUT);
-  }
+  pinMode(pinUP, INPUT_PULLUP); 
+  pinMode(pinDWN, INPUT_PULLUP); 
+  pinMode(pinLFT, INPUT_PULLUP); 
+  pinMode(pinRIGHT, INPUT_PULLUP); 
+  pinMode(pinMID, INPUT_PULLUP); 
 
   //recupero i valori delle soglie salvati in eeprom
   EEPROM.get(EEPROMADDR_minTempL, minTempL);
@@ -192,7 +194,7 @@ void loop() {
   }
   
   if(readMatrixDisabledTiming >= readMatrixDisabledDelay){
-    String cmd = readTastierino();
+    String cmd = readJoyStick();
     if(cmd != cmdNoCommand){
       Serial.print("Azzero il disabled timing\n\r");
       readMatrixDisabledTiming = 0;
@@ -282,101 +284,44 @@ float readTemp(){
   return tToReturn;
 }
 
-String readTastierino(){
-  /*******************************/
-  /*** nu *** nu *** nu *** nu ***/
-  /*******************************/
-  /*** nu *** nu *** UP *** nu ***/
-  /*******************************/
-  /*** nu *** SX *** OK *** DS ***/
-  /*******************************/
-  /*** nu *** nu *** DN *** nu ***/
-  /*******************************/
-  //NB: Il pulsante del 3 è rotto!
+String readJoyStick(){
+  //leggo tutti i pin digitali dai quali mi può arrivare un comando
+  int tempCmdUP = digitalRead(pinUP);
+  int tempCmdDOWN = digitalRead(pinDWN);
+  int tempCmdLEFT = digitalRead(pinLFT);
+  int tempCmdRIGHT = digitalRead(pinRIGHT);
+  int tempCmdMID = digitalRead(pinMID);
 
-  //Metto preventivamente tutti i pin delle colonne a LOW
-  for(int i = 0; i < matrixGrade; i++){
-    digitalWrite(pinColonne[i], LOW);
-  }
-
-  //Ciclo le colonne e le metto HIGH una alla volta
-  for(int i = 0; i < matrixGrade; i++){
-    digitalWrite(pinColonne[i], HIGH);
-
-    if(digitalRead(pinRighe[0]) == HIGH && digitalRead(pinRighe[1]) == LOW && digitalRead(pinRighe[2]) == LOW && digitalRead(pinRighe[3]) == LOW){
-      switch(i){
-        case 0:
-          Serial.print("1");
-          return cmdNoCommand;
-        case 1:
-          Serial.print("4");
-          return cmdNoCommand;
-        case 2:
-          Serial.print("7");
-          return cmdNoCommand;
-        case 3:
-          Serial.print("*");
-          return cmdNoCommand;
-        default:
-          return cmdNoCommand;
-      }
-    }else if(digitalRead(pinRighe[0]) == LOW && digitalRead(pinRighe[1]) == HIGH && digitalRead(pinRighe[2]) == LOW && digitalRead(pinRighe[3]) == LOW){
-      switch(i){
-        case 0:
-          Serial.print("2");
-          return cmdNoCommand;
-        case 1:
-          Serial.print("5");
-          return cmdNoCommand;
-        case 2:
-          Serial.print("Comando tastierino: " + cmdLEFT);
-          return cmdLEFT;
-        case 3:
-          Serial.print("0");
-          return cmdNoCommand;
-        default:
-          return cmdNoCommand;
-      }
-    }else if(digitalRead(pinRighe[0]) == LOW && digitalRead(pinRighe[1]) == LOW && digitalRead(pinRighe[2]) == HIGH && digitalRead(pinRighe[3]) == LOW){
-      switch(i){
-        case 0:
-          Serial.print("3");
-          return cmdNoCommand;
-        case 1:
-          Serial.print("Comando tastierino: " + cmdUP);
-          return cmdUP;
-        case 2:
-          Serial.print("Comando tastierino: " + cmdOK);
-          return cmdOK;
-        case 3:
-          Serial.print("Comando tastierino: " + cmdDOWN);
-          return cmdDOWN;
-        default:
-          return cmdNoCommand;
-      }
-    }else if(digitalRead(pinRighe[0]) == LOW && digitalRead(pinRighe[1]) == LOW && digitalRead(pinRighe[2]) == LOW && digitalRead(pinRighe[3]) == HIGH){
-      switch(i){
-        case 0:
-          Serial.print("A");
-          return cmdNoCommand;
-        case 1:
-          Serial.print("B");
-          return cmdNoCommand;
-        case 2:
-          Serial.print("Comando tastierino: " + cmdRIGHT);
-          return cmdRIGHT;
-        case 3:
-          Serial.print("D");
-          return cmdNoCommand;
-        default:
-          return cmdNoCommand;
-      }
+  //Visto che la pressione centrale del tasto può mandare a 0 alcuni o tutti gli altri
+  //segnali oltre al MID, per controllare se MID è stato premuto verifico anche
+  //lo stato degli altri segnali
+  if(tempCmdMID == 0){
+    if(tempCmdUP == 0 && tempCmdDOWN == 0 && tempCmdLEFT == 0 && tempCmdRIGHT == 0){
+      //Se sono tutti 0 sicuramente sto premendo il tasto centrale
+      return cmdOK;
+    }else if(tempCmdUP == 0 || tempCmdDOWN == 0 || tempCmdLEFT == 0 || tempCmdRIGHT == 0){
+      //Se MID è 0 ed anche qualcun altro pin è 0, allora sto premendo il tasto 
+      //centrale ma in maniera poco energica. Considero comunque come comando OK
+      return cmdOK;
+    }else{
+      //Se MID è 0 e nessun altro è 0 considero NoCommand. Dai test non è stato osservato
+      //che MID vada a 0 da solo. Pertanto viene considerato come un mal funzionamento (per ora).
+      return cmdNoCommand;
     }
-
-    digitalWrite(pinColonne[i], LOW);
+  }else{
+    //Se MID è diverso da 0, controllo se sto eseguendo qualche altro comando
+    if(tempCmdUP == 0){
+      return cmdUP;
+    }else if(tempCmdDOWN == 0){
+      return cmdDOWN;
+    }else if(tempCmdLEFT == 0){
+      return cmdLEFT;
+    }else if(tempCmdRIGHT == 0){
+      return cmdRIGHT;
+    }else{
+      return cmdNoCommand;
+    }
   }
-
-  return cmdNoCommand;
 }
 
 //ATTUAZIONI
