@@ -1,6 +1,7 @@
-Prevedere accensione e spegnimento manuale degli attuatori
+Prevedere accensione e spegnimento manuale degli attuatori						DONE
 Pompa per irrigare automaticamente
-Led full spectrum interno alla serra e non lampada esterna
+Led full spectrum interno alla serra e non lampada esterna						DONE
 Prevedere sistema di alimentazione a batteria con eventuale piccolo pannello
 Includere igrometro terreno
 Prevedere gestione notturna e diurna differenziate
+Prevedere gestione ventole

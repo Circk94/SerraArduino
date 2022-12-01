@@ -69,17 +69,38 @@ float t = 0;
 /******************************************************************************/
 
 /******************************************************************************/
+/****************************** ON OFF MANUALE ********************************/
+/******************************************************************************/
+//Enumeratore coi possibili stati di accensione spegnimento
+#define EEPROMADDR_lightOnOffState EEPROMADDR_maxTempT + sizeof(float)
+#define EEPROMADDR_funROnOffState EEPROMADDR_lightOnOffState + sizeof(int)
+#define EEPROMADDR_funLOnOffState EEPROMADDR_funROnOffState + sizeof(int)
+String onOffStateLabel[] = {"AUTO", "ON  ", "OFF "};
+// 0 = AUTO
+// 1 = ON
+// 2 = OFF
+int lightOnOffState = 0;
+int funROnOffState = 0;
+int funLOnOffState = 0;
+const int nPossibiliStati = 3;
+/******************************************************************************/
+
+/******************************************************************************/
 /******************************** PAGINAZIONE *********************************/
 /******************************************************************************/
 //Indice del menu (incrementabile con destra e sinistra)
 //0 = menu contenente le varie letture
 //1 = menu per il settaggio delle soglie
 int menu = 0;
-int nMenu = 2;
+int nMenu = 3;
+const int idMenuLetture = 0;
+const int idMenuOnOff = 1;
+const int idMenuSoglie = 2;
 const int pagineMenuLetture = 1;
+const int pagineOnOffManuale = 2;
 const int pagineMenuSettaggi = 2;
-int paginePerMenu[] = {pagineMenuLetture, pagineMenuSettaggi};
-bool showCursorePerMenu[] = {false, true};
+int paginePerMenu[] = {pagineMenuLetture, pagineOnOffManuale, pagineMenuSettaggi};
+bool showCursorePerMenu[] = {false, true, true};
 //Indice della pagina (incrementabile con sopra e sotto)
 //0 = pagina principale
 int pagina = 0;
@@ -88,6 +109,16 @@ int pagina = 0;
 //0 = pagina principale
 int cursore = 0;
 
+//menù accensione spegnimento manuale
+const String labelLedFullSpectrum = "light";
+const String labelFunRight = "funR";
+const String labelFunLeft = "funL";
+String onOffPerPagina[pagineOnOffManuale][2] = {
+  {labelFunRight, labelFunLeft},
+  {labelLedFullSpectrum, ""}
+};
+
+//menu soglie
 const String labelSoglia_minTempL = "minTempL";
 const String labelSoglia_minTempT = "minTempT";
 const String labelSoglia_maxTempL = "maxTempL";
@@ -174,6 +205,11 @@ void setup() {
   EEPROM.get(EEPROMADDR_minTempT, minTempT);
   EEPROM.get(EEPROMADDR_maxTempL, maxTempL);
   EEPROM.get(EEPROMADDR_maxTempT, maxTempT);
+
+  //recupero i settaggi degli on off manuali salvati in eeprom
+  EEPROM.get(EEPROMADDR_lightOnOffState, lightOnOffState);
+  EEPROM.get(EEPROMADDR_funROnOffState, funROnOffState);
+  EEPROM.get(EEPROMADDR_funLOnOffState, funLOnOffState);
 }
 
 void loop() {
@@ -326,12 +362,18 @@ String readJoyStick(){
 
 //ATTUAZIONI
 void enableDisableHeater(){  
-  if(t < minTempL){
-    //se la temperatura è sotto la soglia minima, accendo l'heater
+  if(lightOnOffState == 0){
+    if(t < minTempL){
+      //se la temperatura è sotto la soglia minima, accendo l'heater
+      digitalWrite(HEATERPIN, HIGH);
+    }
+    if(t > minTempT){
+      //se la temperatura è sopra la soglia massima, spengo l'heater
+      digitalWrite(HEATERPIN, LOW);
+    }
+  }else if(lightOnOffState == 1){
     digitalWrite(HEATERPIN, HIGH);
-  }
-  if(t > minTempT){
-    //se la temperatura è sopra la soglia massima, spengo l'heater
+  }else if(lightOnOffState == 2){
     digitalWrite(HEATERPIN, LOW);
   }
 }
@@ -368,10 +410,9 @@ void printToLCD(){
     case 1: 
       printMenu1();
       break;
-    // case 2:
-    //   lcd.setCursor(1, 0);
-    //   lcd.print("Terzo menu");
-    //   break;
+    case 2:
+      printMenu2();
+      break;
     // case 3:
     //   lcd.setCursor(1, 0);
     //   lcd.print("Quarto menu");
@@ -428,8 +469,31 @@ void printMenu0(){
   }  
 }
 
-//Menù per i settaggi delle soglie
+//Menù accensione spegnimento manuali
 void printMenu1(){
+  //Menù 2: accensione spegnimento manuale
+  //        0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+  //riga0:  > f u n R   A U T O
+  //riga1:    f u n L   A U T O
+  lcd.setCursor(1, 0); 
+  lcd.print(onOffPerPagina[pagina][0]);
+  lcd.setCursor(1, 1); 
+  lcd.print(onOffPerPagina[pagina][1]);
+  if(pagina == 0){
+    lcd.setCursor(onOffPerPagina[pagina][0].length() + 2, 0);
+    lcd.print(onOffStateLabel[funROnOffState]);
+    lcd.setCursor(onOffPerPagina[pagina][1].length() + 2, 1);        
+    lcd.print(onOffStateLabel[funLOnOffState]);
+  }else if(pagina == 1){
+    lcd.setCursor(onOffPerPagina[pagina][0].length() + 2, 0);   
+    lcd.print(onOffStateLabel[lightOnOffState]);
+    lcd.setCursor(onOffPerPagina[pagina][1].length() + 2, 1);        
+    lcd.print("");
+  }
+}
+
+//Menù per i settaggi delle soglie
+void printMenu2(){
   //Menù 1: settaggio soglie
   //        0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
   //riga0:  > m i n T e m p L : x  x  .  x  x 
@@ -476,7 +540,25 @@ void manageMenuPageChange(String cmd){
 void detectEditing(String cmd){
   if(cmd == cmdOK && showCursorePerMenu[menu]){
     editing = !editing;
-    if(menu == 1){
+    if(menu == idMenuOnOff){
+      if(editing){
+        if(onOffPerPagina[pagina][cursore] == labelLedFullSpectrum){
+          EEPROM.get(EEPROMADDR_lightOnOffState, lightOnOffState);
+        }else if(onOffPerPagina[pagina][cursore] == labelFunRight){
+          EEPROM.get(EEPROMADDR_funROnOffState, funROnOffState);
+        }else if(onOffPerPagina[pagina][cursore] == labelFunLeft){
+          EEPROM.get(EEPROMADDR_funLOnOffState, funLOnOffState);
+        }
+      }else{
+        if(onOffPerPagina[pagina][cursore] == labelLedFullSpectrum){
+          EEPROM.put(EEPROMADDR_lightOnOffState, lightOnOffState);
+        }else if(onOffPerPagina[pagina][cursore] == labelFunRight){
+          EEPROM.put(EEPROMADDR_funROnOffState, funROnOffState);
+        }else if(onOffPerPagina[pagina][cursore] == labelFunLeft){
+          EEPROM.put(EEPROMADDR_funLOnOffState, funLOnOffState);
+        }
+      }
+    }else if(menu == idMenuSoglie){
       if(editing){
         //ho abilitato l'editing delle soglie, quindi recupero dalla EEPROM
         //il valore salvato e lo salvo nella variabile locale 
@@ -508,8 +590,59 @@ void detectEditing(String cmd){
 }
 
 void manageEditing(String cmd){
-  if(menu == 1){
+  if(menu == idMenuOnOff){
+    editOnOff(cmd);
+  }else if(menu == idMenuSoglie){
     editSoglie(cmd);
+  }
+}
+
+void editOnOff(String cmd){  
+  if(onOffPerPagina[pagina][cursore] == labelLedFullSpectrum){
+    if(cmd == cmdDOWN){
+      if(lightOnOffState < (nPossibiliStati - 1)){
+        lightOnOffState++;
+      }else if(lightOnOffState == (nPossibiliStati - 1)){
+        lightOnOffState = 0;
+      }
+    }
+    if(cmd == cmdUP){
+      if(lightOnOffState > 0){
+        lightOnOffState--;
+      }else if(lightOnOffState == 0){
+        lightOnOffState = nPossibiliStati - 1;
+      }
+    }
+  }else if(onOffPerPagina[pagina][cursore] == labelFunRight){
+    if(cmd == cmdDOWN){
+      if(funROnOffState < (nPossibiliStati - 1)){
+        funROnOffState++;
+      }else if(funROnOffState == (nPossibiliStati - 1)){
+        funROnOffState = 0;
+      }
+    }
+    if(cmd == cmdUP){
+      if(funROnOffState > 0){
+        funROnOffState--;
+      }else if(funROnOffState == 0){
+        funROnOffState = nPossibiliStati - 1;
+      }
+    }
+  }else if(onOffPerPagina[pagina][cursore] == labelFunLeft){
+    if(cmd == cmdDOWN){
+      if(funLOnOffState < (nPossibiliStati - 1)){
+        funLOnOffState++;
+      }else if(funLOnOffState == (nPossibiliStati - 1)){
+        funLOnOffState = 0;
+      }
+    }
+    if(cmd == cmdUP){
+      if(funLOnOffState > 0){
+        funLOnOffState--;
+      }else if(funLOnOffState == 0){
+        funLOnOffState = nPossibiliStati - 1;
+      }
+    }
   }
 }
 
