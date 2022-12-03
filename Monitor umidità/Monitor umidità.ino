@@ -11,6 +11,16 @@
 #define DHT2PIN 3  
 
 #define HEATERPIN 4
+
+#define IGROMETROPIN A0
+#define ENABLE_IGROMETRO 10
+
+#define WATERPIN 11
+
+//Valori estremi restituiti dall'ADC connesso all'igrometro e che identificano 
+//la condizione di massima e minima umidità rilevata
+const int MIN_ADCREAD = 79;  //valore di massima umidità misurato con igrometro immerso in acqua
+const int MAX_ADCREAD = 1023; //valore di minima umidità misurato con igrometro in aria
 /* Definizioni globali */
 // Uncomment whatever type you're using!
 #define DHTTYPE DHT11   // DHT 11
@@ -44,8 +54,17 @@ const String cmdNoCommand = "NC";
 //Variabili per la gestione della temporizzazione
 int loopDelay = 100; //valore in ms del delay nella funzione loop
 
-const int measureDelay = 2000;  //valore in ms del delay tra due misure
-int measureTiming = measureDelay;  //valore in ms del tempo trascorso dall'ultima misura (lo inizializzo a measureDelay per effettuare una misura già all'avvio)
+const int measureDHTDelay = 2000;  //valore in ms del delay tra due misure di temperatura e umidità dai sensori DHT
+int measureDHTTiming = measureDHTDelay;  //valore in ms del tempo trascorso dall'ultima misura (lo inizializzo a measureDelay per effettuare una misura già all'avvio)
+
+//L'umidita del terreno diminuisce molto lentamente quindi per osservarne il transitorio è possibile
+//campionare ad intervalli abbastanza ampi. In caso di accensione automatica di un irrigatore, l'umidità
+//varierebbe rapidamente quindi l'intervallo di campionamento dovrà essere basso, in modo da rilevare
+//il prima possibile il reggiungimento della soglia di spegnimento dell'irrigatore
+const int measureIgroDelay = 30000;  //30sec
+const int measureIgroWaterDelay = 1000;  //1sec
+int measureIgroTiming = measureIgroDelay;
+bool autoWater = false;
 
 const int readMatrixDisabledDelay = 300;
 int readMatrixDisabledTiming = readMatrixDisabledDelay;
@@ -59,22 +78,28 @@ bool isCmdDetected = false;
 #define EEPROMADDR_minTempT EEPROMADDR_minTempL + sizeof(float)
 #define EEPROMADDR_maxTempL EEPROMADDR_minTempT + sizeof(float)
 #define EEPROMADDR_maxTempT EEPROMADDR_maxTempL + sizeof(float)
+#define EEPROMADDR_minHSoil EEPROMADDR_maxTempT + sizeof(float)
+#define EEPROMADDR_maxHSoil EEPROMADDR_minHSoil + sizeof(float)
 float minTempL;
 float minTempT;
 float maxTempL;
 float maxTempT;
+float minHSoil;
+float maxHSoil;
 
-float h = 0;
-float t = 0;
+float h_Air = 0;
+float t_Air = 0;
+int h_Soil = 0;
 /******************************************************************************/
 
 /******************************************************************************/
 /****************************** ON OFF MANUALE ********************************/
 /******************************************************************************/
 //Enumeratore coi possibili stati di accensione spegnimento
-#define EEPROMADDR_lightOnOffState EEPROMADDR_maxTempT + sizeof(float)
+#define EEPROMADDR_lightOnOffState EEPROMADDR_maxHSoil + sizeof(float)
 #define EEPROMADDR_funROnOffState EEPROMADDR_lightOnOffState + sizeof(int)
 #define EEPROMADDR_funLOnOffState EEPROMADDR_funROnOffState + sizeof(int)
+#define EEPROMADDR_waterOnOffState EEPROMADDR_funLOnOffState + sizeof(int)
 String onOffStateLabel[] = {"AUTO", "ON  ", "OFF "};
 // 0 = AUTO
 // 1 = ON
@@ -82,6 +107,7 @@ String onOffStateLabel[] = {"AUTO", "ON  ", "OFF "};
 int lightOnOffState = 0;
 int funROnOffState = 0;
 int funLOnOffState = 0;
+int waterOnOffState = 0;
 const int nPossibiliStati = 3;
 /******************************************************************************/
 
@@ -96,9 +122,9 @@ int nMenu = 3;
 const int idMenuLetture = 0;
 const int idMenuOnOff = 1;
 const int idMenuSoglie = 2;
-const int pagineMenuLetture = 1;
+const int pagineMenuLetture = 2;
 const int pagineOnOffManuale = 2;
-const int pagineMenuSettaggi = 2;
+const int pagineMenuSettaggi = 3;
 int paginePerMenu[] = {pagineMenuLetture, pagineOnOffManuale, pagineMenuSettaggi};
 bool showCursorePerMenu[] = {false, true, true};
 //Indice della pagina (incrementabile con sopra e sotto)
@@ -113,9 +139,10 @@ int cursore = 0;
 const String labelLedFullSpectrum = "light";
 const String labelFunRight = "funR";
 const String labelFunLeft = "funL";
+const String labelWater = "water";
 String onOffPerPagina[pagineOnOffManuale][2] = {
   {labelFunRight, labelFunLeft},
-  {labelLedFullSpectrum, ""}
+  {labelLedFullSpectrum, labelWater}
 };
 
 //menu soglie
@@ -123,9 +150,12 @@ const String labelSoglia_minTempL = "minTempL";
 const String labelSoglia_minTempT = "minTempT";
 const String labelSoglia_maxTempL = "maxTempL";
 const String labelSoglia_maxTempT = "maxTempT";
+const String labelSoglia_minHSoil = "minHSoil";
+const String labelSoglia_maxHSoil = "maxHSoil";
 String sogliePerPagina[pagineMenuSettaggi][2] = {
   {labelSoglia_minTempL, labelSoglia_minTempT}, //Pagina 1
-  {labelSoglia_maxTempL, labelSoglia_maxTempT}  //Pagina 2
+  {labelSoglia_maxTempL, labelSoglia_maxTempT},  //Pagina 2
+  {labelSoglia_minHSoil, labelSoglia_maxHSoil}  //Pagina 3
 };
 bool editing = false;
 const float deltaIncrDecrSoglia = 0.5f;
@@ -181,6 +211,10 @@ void setup() {
   dht1.begin();
   dht2.begin();
 
+  //Inizializzo il pin digitale per l'attivazione dell'igrometro del terreno
+  pinMode(ENABLE_IGROMETRO, OUTPUT);
+  digitalWrite(ENABLE_IGROMETRO, LOW);
+
   //Init LCD
   lcd.init(); // initialize the lcd
   lcd.backlight();
@@ -192,6 +226,9 @@ void setup() {
   //Init Heater/Light
   pinMode(HEATERPIN, OUTPUT);           // set pin to input
   digitalWrite(HEATERPIN, LOW);
+
+  pinMode(WATERPIN, OUTPUT);
+  digitalWrite(WATERPIN, LOW);
 
   //Inizializzo i pin digitali utilizzati per la lettura della matrice di pulsanti
   pinMode(pinUP, INPUT_PULLUP); 
@@ -205,11 +242,14 @@ void setup() {
   EEPROM.get(EEPROMADDR_minTempT, minTempT);
   EEPROM.get(EEPROMADDR_maxTempL, maxTempL);
   EEPROM.get(EEPROMADDR_maxTempT, maxTempT);
+  EEPROM.get(EEPROMADDR_minHSoil, minHSoil);
+  EEPROM.get(EEPROMADDR_maxHSoil, maxHSoil);
 
   //recupero i settaggi degli on off manuali salvati in eeprom
   EEPROM.get(EEPROMADDR_lightOnOffState, lightOnOffState);
   EEPROM.get(EEPROMADDR_funROnOffState, funROnOffState);
   EEPROM.get(EEPROMADDR_funLOnOffState, funLOnOffState);
+  EEPROM.get(EEPROMADDR_waterOnOffState, waterOnOffState);
 }
 
 void loop() {
@@ -219,14 +259,26 @@ void loop() {
   manageTiming();
 
   //Se il tempo tra due misure è trascorso
-  if(measureTiming >= measureDelay){
+  if(measureDHTTiming >= measureDHTDelay){
     //azzero il contatore;
-    measureTiming = 0;
+    measureDHTTiming = 0;
     //effettuo le misure
-    h = readHumid();
-    t = readTemp();
+    h_Air = readHumid();
+    t_Air = readTemp();
     //gestisco i vari attuatori
     enableDisableHeater();
+  }
+
+  int igroDelay = measureIgroDelay;
+  if(autoWater){
+    igroDelay = measureIgroWaterDelay;
+  }
+  if(measureIgroTiming >= igroDelay){
+    //azzero il contatore;
+    measureIgroTiming = 0;
+    //effettuo la misura
+    h_Soil = readIgrometro();
+    enableDisableWater();
   }
   
   if(readMatrixDisabledTiming >= readMatrixDisabledDelay){
@@ -320,6 +372,22 @@ float readTemp(){
   return tToReturn;
 }
 
+int readIgrometro(){
+  //Alimento l'igrometro solo quando serve in modo da ridurre il deterioramento
+  //della sonda
+  digitalWrite(ENABLE_IGROMETRO, HIGH);
+  delay(500);
+  int ADCValue = analogRead(IGROMETROPIN);
+  Serial.println("Lettura ADC Igrometro: " + String(ADCValue));
+  digitalWrite(ENABLE_IGROMETRO, LOW);
+
+  //Mappo il valore letto con i valori minimo e massimo per convertirlo in percentuale
+  int hPercValue = map(ADCValue, MIN_ADCREAD, MAX_ADCREAD, 100, 0);
+  hPercValue = constrain(hPercValue, 0, 100);
+  Serial.println("Valore percentuale umidità terreno: " + String(hPercValue) + "%");
+  return hPercValue;
+}
+
 String readJoyStick(){
   //leggo tutti i pin digitali dai quali mi può arrivare un comando
   int tempCmdUP = digitalRead(pinUP);
@@ -363,11 +431,11 @@ String readJoyStick(){
 //ATTUAZIONI
 void enableDisableHeater(){  
   if(lightOnOffState == 0){
-    if(t < minTempL){
+    if(t_Air < minTempL){
       //se la temperatura è sotto la soglia minima, accendo l'heater
       digitalWrite(HEATERPIN, HIGH);
     }
-    if(t > minTempT){
+    if(t_Air > minTempT){
       //se la temperatura è sopra la soglia massima, spengo l'heater
       digitalWrite(HEATERPIN, LOW);
     }
@@ -375,6 +443,21 @@ void enableDisableHeater(){
     digitalWrite(HEATERPIN, HIGH);
   }else if(lightOnOffState == 2){
     digitalWrite(HEATERPIN, LOW);
+  }
+}
+
+void enableDisableWater(){
+  if(waterOnOffState == 0){
+    if(h_Soil < minHSoil){
+      digitalWrite(WATERPIN, HIGH);
+    }
+    if(t_Air >= maxHSoil){
+      digitalWrite(WATERPIN, LOW);
+    }
+  }else if(waterOnOffState == 1){
+    digitalWrite(WATERPIN, HIGH);
+  }else if(waterOnOffState == 2){
+    digitalWrite(WATERPIN, LOW);
   }
 }
 
@@ -431,38 +514,33 @@ void printMenu0(){
   if(pagina == 0){
     //Intestazione righe indicazione della grandezza rappresentata
     lcd.setCursor(1, 0);        
-    lcd.print("temp:");         
-    lcd.setCursor(1, 1);        
-    lcd.print("umid:");          
-    //Valori misurati
-    lcd.setCursor(6, 0);
-    lcd.print(t); 
-    lcd.setCursor(6, 1);
-    lcd.print(h);
-    //Unità di misura 
-    lcd.setCursor(11, 0);
+    lcd.print("tAir:");
+    lcd.print(t_Air);
     lcd.print((char)223);
-    lcd.setCursor(12, 0);
-    lcd.print("C");
-    lcd.setCursor(11, 1);  
-    lcd.print("%");
+    lcd.print("C");          
+    lcd.setCursor(1, 1);        
+    lcd.print("hAir:"); 
+    lcd.print(h_Air);    
+    lcd.print("%");       
     //Indicatori violazione soglia
     //Temperatura
-    if(t < minTempL){
+    if(t_Air < minTempL){
       lcd.setCursor(14, 0);
       lcd.print("Lo");
     }
-    if(t > maxTempT){
+    if(t_Air > maxTempT){
       lcd.setCursor(14, 0);
       lcd.print("Hi");
     }
-    if(t >= minTempL && t <= maxTempT){
+    if(t_Air >= minTempL && t_Air <= maxTempT){
       lcd.setCursor(14, 0);
       lcd.print("  ");
     }
   }else if(pagina == 1){
     lcd.setCursor(1, 0);        
-    lcd.print("Menu1,pagina2");
+    lcd.print("hSoil:"); 
+    lcd.print(float(h_Soil));    
+    lcd.print("%");
   }else if(pagina == 2){
     lcd.setCursor(1, 0);        
     lcd.print("Menu1,pagina3");
@@ -488,7 +566,7 @@ void printMenu1(){
     lcd.setCursor(onOffPerPagina[pagina][0].length() + 2, 0);   
     lcd.print(onOffStateLabel[lightOnOffState]);
     lcd.setCursor(onOffPerPagina[pagina][1].length() + 2, 1);        
-    lcd.print("");
+    lcd.print(onOffStateLabel[waterOnOffState]);
   }
 }
 
@@ -512,6 +590,11 @@ void printMenu2(){
     lcd.print(maxTempL);
     lcd.setCursor(10, 1);        
     lcd.print(maxTempT);
+  }else if(pagina == 2){    
+    lcd.setCursor(10, 0);        
+    lcd.print(minHSoil);
+    lcd.setCursor(10, 1);        
+    lcd.print(maxHSoil);
   }
 }
 
@@ -548,6 +631,8 @@ void detectEditing(String cmd){
           EEPROM.get(EEPROMADDR_funROnOffState, funROnOffState);
         }else if(onOffPerPagina[pagina][cursore] == labelFunLeft){
           EEPROM.get(EEPROMADDR_funLOnOffState, funLOnOffState);
+        }else if(onOffPerPagina[pagina][cursore] == labelWater){
+          EEPROM.get(EEPROMADDR_waterOnOffState, waterOnOffState);
         }
       }else{
         if(onOffPerPagina[pagina][cursore] == labelLedFullSpectrum){
@@ -556,6 +641,8 @@ void detectEditing(String cmd){
           EEPROM.put(EEPROMADDR_funROnOffState, funROnOffState);
         }else if(onOffPerPagina[pagina][cursore] == labelFunLeft){
           EEPROM.put(EEPROMADDR_funLOnOffState, funLOnOffState);
+        }else if(onOffPerPagina[pagina][cursore] == labelWater){
+          EEPROM.put(EEPROMADDR_waterOnOffState, waterOnOffState);
         }
       }
     }else if(menu == idMenuSoglie){
@@ -571,6 +658,10 @@ void detectEditing(String cmd){
           EEPROM.get(EEPROMADDR_maxTempL, maxTempL);
         }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxTempT){
           EEPROM.get(EEPROMADDR_maxTempT, maxTempT);
+        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_minHSoil){
+          EEPROM.get(EEPROMADDR_minHSoil, minHSoil);
+        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxHSoil){
+          EEPROM.get(EEPROMADDR_maxHSoil, maxHSoil);
         }
       }else{
         //ho disabilitato l'editing delle soglie, quindi salvo il valore
@@ -583,6 +674,10 @@ void detectEditing(String cmd){
           EEPROM.put(EEPROMADDR_maxTempL, maxTempL);
         }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxTempT){
           EEPROM.put(EEPROMADDR_maxTempT, maxTempT);
+        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_minHSoil){
+          EEPROM.put(EEPROMADDR_minHSoil, minHSoil);
+        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxHSoil){
+          EEPROM.put(EEPROMADDR_maxHSoil, maxHSoil);
         }
       }
     }
@@ -643,6 +738,21 @@ void editOnOff(String cmd){
         funLOnOffState = nPossibiliStati - 1;
       }
     }
+  }else if(onOffPerPagina[pagina][cursore] == labelWater){
+    if(cmd == cmdDOWN){
+      if(waterOnOffState < (nPossibiliStati - 1)){
+        waterOnOffState++;
+      }else if(waterOnOffState == (nPossibiliStati - 1)){
+        waterOnOffState = 0;
+      }
+    }
+    if(cmd == cmdUP){
+      if(waterOnOffState > 0){
+        waterOnOffState--;
+      }else if(waterOnOffState == 0){
+        waterOnOffState = nPossibiliStati - 1;
+      }
+    }
   }
 }
 
@@ -663,6 +773,10 @@ void editSoglie(String cmd){
     maxTempL += valoreDaSommare;
   }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxTempT){
     maxTempT += valoreDaSommare;
+  }else if(sogliePerPagina[pagina][cursore] == labelSoglia_minHSoil){
+    minHSoil += valoreDaSommare;
+  }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxHSoil){
+    maxHSoil += valoreDaSommare;
   }
 }
 
@@ -741,8 +855,9 @@ void moveMenu(String cmd){
 }
 
 void manageTiming(){
-  measureTiming += loopDelay;
+  measureDHTTiming += loopDelay;
   if(readMatrixDisabledTiming < readMatrixDisabledDelay){
     readMatrixDisabledTiming += loopDelay;
   }
+  measureIgroTiming += loopDelay;
 }
