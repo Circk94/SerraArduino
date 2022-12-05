@@ -61,7 +61,7 @@ int measureDHTTiming = measureDHTDelay;  //valore in ms del tempo trascorso dall
 //campionare ad intervalli abbastanza ampi. In caso di accensione automatica di un irrigatore, l'umidità
 //varierebbe rapidamente quindi l'intervallo di campionamento dovrà essere basso, in modo da rilevare
 //il prima possibile il reggiungimento della soglia di spegnimento dell'irrigatore
-const int measureIgroDelay = 30000;  //30sec
+const int measureIgroDelay = 5000;  //5sec
 const int measureIgroWaterDelay = 1000;  //1sec
 int measureIgroTiming = measureIgroDelay;
 bool autoWater = false;
@@ -69,6 +69,9 @@ bool autoWater = false;
 const int readMatrixDisabledDelay = 300;
 int readMatrixDisabledTiming = readMatrixDisabledDelay;
 bool isCmdDetected = false;
+
+const int autoCyclePageDelay = 15000; //15sec
+int autoCyclePageTiming = 0; 
 /******************************************************************************/
 
 /******************************************************************************/
@@ -258,7 +261,7 @@ void loop() {
   //incremento le variabili temporali che tengono il tempo di ogni diversa operazione
   manageTiming();
 
-  //Se il tempo tra due misure è trascorso
+  //Leggo dai sensori DHT di temperatura e umidità
   if(measureDHTTiming >= measureDHTDelay){
     //azzero il contatore;
     measureDHTTiming = 0;
@@ -269,6 +272,7 @@ void loop() {
     enableDisableHeater();
   }
 
+  //Leggo dall'igrometro del terreno
   int igroDelay = measureIgroDelay;
   if(autoWater){
     igroDelay = measureIgroWaterDelay;
@@ -281,6 +285,7 @@ void loop() {
     enableDisableWater();
   }
   
+  //Leggo dal joystick se si sta navigando tra i menù
   if(readMatrixDisabledTiming >= readMatrixDisabledDelay){
     String cmd = readJoyStick();
     if(cmd != cmdNoCommand){
@@ -294,6 +299,11 @@ void loop() {
       }
       detectEditing(cmd);
     }
+  }
+
+  //ciclo automaticamente il menù delle letture
+  if(autoCyclePageTiming >= autoCyclePageDelay){
+    movePage(cmdDOWN);
   }
 
   //il refresh dell'LDC funziona alla frequenza massima (del loop) per essere il più responsive possibile
@@ -831,6 +841,10 @@ void movePage(String cmd){
   }
   if(previousPage != pagina){
     mpChanged = true;
+    //a prescindere in quale menù mi trovo, se sto cambiando pagina azzero il timer del cambio pagina automatico
+    //se sono in menù diversi dalle letture non cambia niente, altrimenti il conteggio si azzera ad ogni mia azione
+    //o ad ogni cambio automatico, e ciò evita che le azioni manuali e il ciclo automatico si pestino i piedi
+    autoCyclePageTiming = 0;
   }
 }
 
@@ -860,4 +874,9 @@ void manageTiming(){
     readMatrixDisabledTiming += loopDelay;
   }
   measureIgroTiming += loopDelay;
+  if(menu == idMenuLetture){
+    autoCyclePageTiming += loopDelay;
+  }else{
+    autoCyclePageTiming = 0;
+  }
 }
