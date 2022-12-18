@@ -1,7 +1,7 @@
 #define IGROMETROPIN A0
 #define ENABLE_IGROMETRO 10
 
-const int MIN_ADCREAD = 79;  //valore di massima umidità misurato con igrometro immerso in acqua
+const int MIN_ADCREAD = 5;  //valore di massima umidità misurato con igrometro immerso in acqua
 const int MAX_ADCREAD = 1023; //valore di minima umidità misurato con igrometro in aria
 
 void setup() {
@@ -16,7 +16,7 @@ void loop() {
 
   Serial.println("Lettura igrometro:" + String(lettura));
 
-  delay(10000);
+  delay(1000);
 }
 
 //restituisce il valore percentuale dell'umidità del terreno misurata
@@ -32,7 +32,7 @@ int LetturaIgrometro(){
   int hPercValue = map(ADCValue, MIN_ADCREAD, MAX_ADCREAD, 100, 0);
   hPercValue = constrain(hPercValue, 0, 100);
 
-  return hPercValue;
+  return ADCValue;
 }
 
 //TEST Taratura igrometro terreno

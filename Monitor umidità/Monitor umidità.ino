@@ -13,7 +13,8 @@
 #define HEATERPIN 4
 
 #define IGROMETROPIN A0
-#define ENABLE_IGROMETRO 10
+#define FOTORESISTENZAPIN A1
+//#define ENABLE_IGROMETRO 10
 
 #define WATERPIN 11
 
@@ -72,6 +73,9 @@ bool isCmdDetected = false;
 
 const int autoCyclePageDelay = 15000; //15sec
 int autoCyclePageTiming = 0; 
+
+const int measureFotoresistenzaDelay = 15000;
+int measureFotoresistenzaTiming = measureFotoresistenzaDelay;
 /******************************************************************************/
 
 /******************************************************************************/
@@ -83,23 +87,27 @@ int autoCyclePageTiming = 0;
 #define EEPROMADDR_maxTempT EEPROMADDR_maxTempL + sizeof(float)
 #define EEPROMADDR_minHSoil EEPROMADDR_maxTempT + sizeof(float)
 #define EEPROMADDR_maxHSoil EEPROMADDR_minHSoil + sizeof(float)
+#define EEPROMADDR_dayNight EEPROMADDR_maxHSoil + sizeof(float)
 float minTempL;
 float minTempT;
 float maxTempL;
 float maxTempT;
 float minHSoil;
 float maxHSoil;
+int dayNight;
 
 float h_Air = 0;
 float t_Air = 0;
 int h_Soil = 0;
+int intLum = 0;
+bool isDay = false;
 /******************************************************************************/
 
 /******************************************************************************/
 /****************************** ON OFF MANUALE ********************************/
 /******************************************************************************/
 //Enumeratore coi possibili stati di accensione spegnimento
-#define EEPROMADDR_lightOnOffState EEPROMADDR_maxHSoil + sizeof(float)
+#define EEPROMADDR_lightOnOffState EEPROMADDR_dayNight + sizeof(int)
 #define EEPROMADDR_funROnOffState EEPROMADDR_lightOnOffState + sizeof(int)
 #define EEPROMADDR_funLOnOffState EEPROMADDR_funROnOffState + sizeof(int)
 #define EEPROMADDR_waterOnOffState EEPROMADDR_funLOnOffState + sizeof(int)
@@ -127,7 +135,7 @@ const int idMenuOnOff = 1;
 const int idMenuSoglie = 2;
 const int pagineMenuLetture = 2;
 const int pagineOnOffManuale = 2;
-const int pagineMenuSettaggi = 3;
+const int pagineMenuSettaggi = 4;
 int paginePerMenu[] = {pagineMenuLetture, pagineOnOffManuale, pagineMenuSettaggi};
 bool showCursorePerMenu[] = {false, true, true};
 //Indice della pagina (incrementabile con sopra e sotto)
@@ -155,10 +163,12 @@ const String labelSoglia_maxTempL = "maxTempL";
 const String labelSoglia_maxTempT = "maxTempT";
 const String labelSoglia_minHSoil = "minHSoil";
 const String labelSoglia_maxHSoil = "maxHSoil";
+const String labelSoglia_dayNight = "dayNight";
 String sogliePerPagina[pagineMenuSettaggi][2] = {
   {labelSoglia_minTempL, labelSoglia_minTempT}, //Pagina 1
   {labelSoglia_maxTempL, labelSoglia_maxTempT},  //Pagina 2
-  {labelSoglia_minHSoil, labelSoglia_maxHSoil}  //Pagina 3
+  {labelSoglia_minHSoil, labelSoglia_maxHSoil},  //Pagina 3
+  {labelSoglia_dayNight, ""}  //Pagina 4
 };
 bool editing = false;
 const float deltaIncrDecrSoglia = 0.5f;
@@ -215,8 +225,8 @@ void setup() {
   dht2.begin();
 
   //Inizializzo il pin digitale per l'attivazione dell'igrometro del terreno
-  pinMode(ENABLE_IGROMETRO, OUTPUT);
-  digitalWrite(ENABLE_IGROMETRO, LOW);
+  //pinMode(ENABLE_IGROMETRO, OUTPUT);
+  //digitalWrite(ENABLE_IGROMETRO, LOW);
 
   //Init LCD
   lcd.init(); // initialize the lcd
@@ -247,6 +257,7 @@ void setup() {
   EEPROM.get(EEPROMADDR_maxTempT, maxTempT);
   EEPROM.get(EEPROMADDR_minHSoil, minHSoil);
   EEPROM.get(EEPROMADDR_maxHSoil, maxHSoil);
+  EEPROM.get(EEPROMADDR_dayNight, dayNight);
 
   //recupero i settaggi degli on off manuali salvati in eeprom
   EEPROM.get(EEPROMADDR_lightOnOffState, lightOnOffState);
@@ -260,6 +271,18 @@ void loop() {
   delay(loopDelay);
   //incremento le variabili temporali che tengono il tempo di ogni diversa operazione
   manageTiming();
+
+  if(measureFotoresistenzaTiming >= measureFotoresistenzaDelay){
+    measureFotoresistenzaTiming = 0;
+    intLum = analogRead(FOTORESISTENZAPIN);
+    if(intLum > dayNight){
+      isDay = true;
+    }else{
+      isDay = false;
+    }
+    Serial.print("Valore letto dalla fotoresistenza (ACDC): ");
+    Serial.println(intLum);    
+  }
 
   //Leggo dai sensori DHT di temperatura e umidità
   if(measureDHTTiming >= measureDHTDelay){
@@ -385,11 +408,11 @@ float readTemp(){
 int readIgrometro(){
   //Alimento l'igrometro solo quando serve in modo da ridurre il deterioramento
   //della sonda
-  digitalWrite(ENABLE_IGROMETRO, HIGH);
-  delay(500);
+  //digitalWrite(ENABLE_IGROMETRO, HIGH);
+  //delay(500);
   int ADCValue = analogRead(IGROMETROPIN);
   Serial.println("Lettura ADC Igrometro: " + String(ADCValue));
-  digitalWrite(ENABLE_IGROMETRO, LOW);
+  //digitalWrite(ENABLE_IGROMETRO, LOW);
 
   //Mappo il valore letto con i valori minimo e massimo per convertirlo in percentuale
   int hPercValue = map(ADCValue, MIN_ADCREAD, MAX_ADCREAD, 100, 0);
@@ -441,8 +464,11 @@ String readJoyStick(){
 //ATTUAZIONI
 void enableDisableHeater(){  
   if(lightOnOffState == 0){
-    if(t_Air < minTempL){
+    if(t_Air < minTempL && isDay){
       //se la temperatura è sotto la soglia minima, accendo l'heater
+      //UPDATE: accendo l'illuminazione solo se è giorno. In questo modo
+      //evito, anche se fa freddo, che la luce si accenda di notte garantendo
+      //un ciclo notturno alle piante
       digitalWrite(HEATERPIN, HIGH);
     }
     if(t_Air > minTempT){
@@ -551,6 +577,9 @@ void printMenu0(){
     lcd.print("hSoil:"); 
     lcd.print(float(h_Soil));    
     lcd.print("%");
+    lcd.setCursor(1, 1);        
+    lcd.print("I_ext:"); 
+    lcd.print(intLum);
   }else if(pagina == 2){
     lcd.setCursor(1, 0);        
     lcd.print("Menu1,pagina3");
@@ -605,6 +634,9 @@ void printMenu2(){
     lcd.print(minHSoil);
     lcd.setCursor(10, 1);        
     lcd.print(maxHSoil);
+  }else if(pagina == 3){
+    lcd.setCursor(10, 0);        
+    lcd.print(dayNight);
   }
 }
 
@@ -672,6 +704,8 @@ void detectEditing(String cmd){
           EEPROM.get(EEPROMADDR_minHSoil, minHSoil);
         }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxHSoil){
           EEPROM.get(EEPROMADDR_maxHSoil, maxHSoil);
+        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_dayNight){
+          EEPROM.get(EEPROMADDR_dayNight, dayNight);
         }
       }else{
         //ho disabilitato l'editing delle soglie, quindi salvo il valore
@@ -688,6 +722,8 @@ void detectEditing(String cmd){
           EEPROM.put(EEPROMADDR_minHSoil, minHSoil);
         }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxHSoil){
           EEPROM.put(EEPROMADDR_maxHSoil, maxHSoil);
+        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_dayNight){
+          EEPROM.put(EEPROMADDR_dayNight, dayNight);
         }
       }
     }
@@ -787,6 +823,8 @@ void editSoglie(String cmd){
     minHSoil += valoreDaSommare;
   }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxHSoil){
     maxHSoil += valoreDaSommare;
+  }else if(sogliePerPagina[pagina][cursore] == labelSoglia_dayNight){
+    dayNight += int(valoreDaSommare*2);
   }
 }
 
@@ -879,4 +917,5 @@ void manageTiming(){
   }else{
     autoCyclePageTiming = 0;
   }
+  measureFotoresistenzaTiming += loopDelay;
 }
