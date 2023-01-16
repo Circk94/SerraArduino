@@ -16,7 +16,10 @@
 #define FOTORESISTENZAPIN A1
 //#define ENABLE_IGROMETRO 10
 
-#define WATERPIN 11
+#define WATERPIN 10
+
+#define FUNRPIN 11
+#define FUNLPIN 12
 
 //Valori estremi restituiti dall'ADC connesso all'igrometro e che identificano 
 //la condizione di massima e minima umidità rilevata
@@ -243,6 +246,12 @@ void setup() {
   pinMode(WATERPIN, OUTPUT);
   digitalWrite(WATERPIN, LOW);
 
+  pinMode(FUNRPIN, OUTPUT);
+  digitalWrite(FUNRPIN, LOW);
+
+  pinMode(FUNLPIN, OUTPUT);
+  digitalWrite(FUNLPIN, LOW);  
+
   //Inizializzo i pin digitali utilizzati per la lettura della matrice di pulsanti
   pinMode(pinUP, INPUT_PULLUP); 
   pinMode(pinDWN, INPUT_PULLUP); 
@@ -293,6 +302,7 @@ void loop() {
     t_Air = readTemp();
     //gestisco i vari attuatori
     enableDisableHeater();
+    enableDisableFuns();
   }
 
   //Leggo dall'igrometro del terreno
@@ -479,6 +489,44 @@ void enableDisableHeater(){
     digitalWrite(HEATERPIN, HIGH);
   }else if(lightOnOffState == 2){
     digitalWrite(HEATERPIN, LOW);
+  }
+}
+
+void enableDisableFuns(){  
+  if(funROnOffState == 0){
+    if(t_Air > maxTempT){
+      //se la temperatura è sotto la soglia minima, accendo l'heater
+      //UPDATE: accendo l'illuminazione solo se è giorno. In questo modo
+      //evito, anche se fa freddo, che la luce si accenda di notte garantendo
+      //un ciclo notturno alle piante
+      digitalWrite(FUNRPIN, HIGH);
+    }
+    if(t_Air < maxTempL){
+      //se la temperatura è sopra la soglia massima, spengo l'heater
+      digitalWrite(FUNRPIN, LOW);
+    }
+  }else if(funROnOffState == 1){
+    digitalWrite(FUNRPIN, HIGH);
+  }else if(funROnOffState == 2){
+    digitalWrite(FUNRPIN, LOW);
+  }
+
+  if(funLOnOffState == 0){
+    if(t_Air > maxTempT){
+      //se la temperatura è sotto la soglia minima, accendo l'heater
+      //UPDATE: accendo l'illuminazione solo se è giorno. In questo modo
+      //evito, anche se fa freddo, che la luce si accenda di notte garantendo
+      //un ciclo notturno alle piante
+      digitalWrite(FUNLPIN, HIGH);
+    }
+    if(t_Air < maxTempL){
+      //se la temperatura è sopra la soglia massima, spengo l'heater
+      digitalWrite(FUNLPIN, LOW);
+    }
+  }else if(funLOnOffState == 1){
+    digitalWrite(FUNLPIN, HIGH);
+  }else if(funLOnOffState == 2){
+    digitalWrite(FUNLPIN, LOW);
   }
 }
 
