@@ -79,6 +79,10 @@ int autoCyclePageTiming = 0;
 
 const int measureFotoresistenzaDelay = 15000;
 int measureFotoresistenzaTiming = measureFotoresistenzaDelay;
+
+const int turnOffDisplayBacklightDelay = 20000;
+int turnOffDisplayBacklightTiming = 0;
+bool isBacklightOn = false;
 /******************************************************************************/
 
 /******************************************************************************/
@@ -130,7 +134,8 @@ const int nPossibiliStati = 3;
 /******************************************************************************/
 //Indice del menu (incrementabile con destra e sinistra)
 //0 = menu contenente le varie letture
-//1 = menu per il settaggio delle soglie
+//1 = menu per il settaggio degli attuatori
+//2 = menu per il settaggio delle soglie
 int menu = 0;
 int nMenu = 3;
 const int idMenuLetture = 0;
@@ -234,6 +239,7 @@ void setup() {
   //Init LCD
   lcd.init(); // initialize the lcd
   lcd.backlight();
+  isBacklightOn = true;
 
   //creo il nuovo carattere da usare come cursore
   lcd.createChar(0, pacmanBoccaAperta);
@@ -281,6 +287,14 @@ void loop() {
   //incremento le variabili temporali che tengono il tempo di ogni diversa operazione
   manageTiming();
 
+  //se è trascorso il tempo definito, spengo la retroilluminazione dello schermo
+  if(isBacklightOn && turnOffDisplayBacklightTiming >= turnOffDisplayBacklightDelay){
+    turnOffDisplayBacklightTiming = 0;
+    lcd.noBacklight();  //spegne la retroilluminazione dell'LCD
+    lcd.noDisplay();
+    isBacklightOn = false;
+  }
+
   if(measureFotoresistenzaTiming >= measureFotoresistenzaDelay){
     measureFotoresistenzaTiming = 0;
     intLum = analogRead(FOTORESISTENZAPIN);
@@ -322,15 +336,30 @@ void loop() {
   if(readMatrixDisabledTiming >= readMatrixDisabledDelay){
     String cmd = readJoyStick();
     if(cmd != cmdNoCommand){
-      Serial.print("Azzero il disabled timing\n\r");
-      readMatrixDisabledTiming = 0;
-      if(!editing){
-        manageMenuPageChange(cmd);
+      if(isBacklightOn){
+        //se lo schermo è acceso, ogni volta che rilevo un comando azzero il timer per lo spegnimento dell'LCD
+        turnOffDisplayBacklightTiming = 0;
+        Serial.print("Azzero il disabled timing\n\r");
+        readMatrixDisabledTiming = 0;
+        if(!editing){
+          manageMenuPageChange(cmd);
+        }
+        if(editing){
+          manageEditing(cmd);
+        }
+        detectEditing(cmd);
       }
-      if(editing){
-        manageEditing(cmd);
+      else{
+        //se quando rilevo un comando il display è spento, 
+        //sfrutto quel comando non per muovermi tra i menù ma per accendere lo schermo
+        //Riaccendendo ritorno alla prima pagina del menù delle letture
+        menu = 0;
+        pagina = 0;
+        cursore = 0;
+        lcd.backlight();  //accende la retroilluminazione dell'LCD
+        lcd.display();
+        isBacklightOn = true;
       }
-      detectEditing(cmd);
     }
   }
 
@@ -339,8 +368,10 @@ void loop() {
     movePage(cmdDOWN);
   }
 
-  //il refresh dell'LDC funziona alla frequenza massima (del loop) per essere il più responsive possibile
-  printToLCD();  
+  if(isBacklightOn){
+    //il refresh dell'LDC funziona alla frequenza massima (del loop) per essere il più responsive possibile
+    printToLCD(); 
+  } 
 }
 
 //FUNZIONI AUSILIARIE
@@ -960,10 +991,14 @@ void manageTiming(){
     readMatrixDisabledTiming += loopDelay;
   }
   measureIgroTiming += loopDelay;
-  if(menu == idMenuLetture){
+  if(menu == idMenuLetture && isBacklightOn){
     autoCyclePageTiming += loopDelay;
   }else{
     autoCyclePageTiming = 0;
   }
   measureFotoresistenzaTiming += loopDelay;
+  if(isBacklightOn){
+    //incremento il timer per capire quando spegnere l'LCD solo se lo schermo è acceso
+    turnOffDisplayBacklightTiming += loopDelay; 
+  }
 }
