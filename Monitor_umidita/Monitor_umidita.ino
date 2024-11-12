@@ -211,16 +211,7 @@ byte pacmanBoccaAperta[] = {
   0b01110
 };
 
-// byte alieno[] = {
-//   0b10001,
-//   0b01010,
-//   0b11111,
-//   0b10101,
-//   0b11111,
-//   0b11111,
-//   0b01010,
-//   0b11011
-// };
+const bool debug = false;
 
 /******************************************************************************/
 
@@ -303,8 +294,11 @@ void loop() {
     }else{
       isDay = false;
     }
-    Serial.print("Valore letto dalla fotoresistenza (ACDC): ");
-    Serial.println(intLum);    
+
+    if(debug){
+      Serial.print("Valore letto dalla fotoresistenza (ACDC): ");
+      Serial.println(intLum); 
+    }   
   }
 
   //Leggo dai sensori DHT di temperatura e umidità
@@ -339,7 +333,9 @@ void loop() {
       if(isBacklightOn){
         //se lo schermo è acceso, ogni volta che rilevo un comando azzero il timer per lo spegnimento dell'LCD
         turnOffDisplayBacklightTiming = 0;
-        Serial.print("Azzero il disabled timing\n\r");
+        if(debug){
+          Serial.print("Azzero il disabled timing\n\r");
+        }
         readMatrixDisabledTiming = 0;
         if(!editing){
           manageMenuPageChange(cmd);
@@ -386,7 +382,9 @@ float readHumid(){
   bool dht1Fail = isnan(h1);
   bool dht2Fail = isnan(h2);
   if(dht1Fail && dht2Fail){
-    Serial.print("Errore di lettura umidita");
+    if(debug){
+      Serial.print("Errore di lettura umidita");
+    }
   }
   if(!dht1Fail && dht2Fail){
     hToReturn = h1;
@@ -399,13 +397,15 @@ float readHumid(){
   }
 
   //LOG
-  Serial.print(F("Humidity1: "));
-  Serial.print(h1);
-  Serial.print(F("Humidity2: "));
-  Serial.print(h2);
-  Serial.print(F("Humidity print: "));
-  Serial.print(hToReturn);
-  Serial.print(F("\n\r"));
+  if(debug){
+    Serial.print(F("Humidity1: "));
+    Serial.print(h1);
+    Serial.print(F("Humidity2: "));
+    Serial.print(h2);
+    Serial.print(F("Humidity print: "));
+    Serial.print(hToReturn);
+    Serial.print(F("\n\r"));
+  }
 
   return hToReturn;
 }
@@ -420,7 +420,9 @@ float readTemp(){
   bool dht1Fail = isnan(t1);
   bool dht2Fail = isnan(t2);
   if(dht1Fail && dht2Fail){
-    Serial.print("Errore di lettura temperatura");
+    if(debug){
+      Serial.print("Errore di lettura temperatura");
+    }
   }
   if(!dht1Fail && dht2Fail){
     tToReturn = t1;
@@ -433,15 +435,17 @@ float readTemp(){
   }
 
   //LOG
-  Serial.print(F("Temperature1: "));
-  Serial.print(t1);
-  Serial.print(F("°C "));
-  Serial.print(F("Temperature2: "));
-  Serial.print(t2);
-  Serial.print(F("°C "));
-  Serial.print(F("Temperature print: "));
-  Serial.print(tToReturn);
-  Serial.print(F("°C \n\r"));
+  if(debug){
+    Serial.print(F("Temperature1: "));
+    Serial.print(t1);
+    Serial.print(F("°C "));
+    Serial.print(F("Temperature2: "));
+    Serial.print(t2);
+    Serial.print(F("°C "));
+    Serial.print(F("Temperature print: "));
+    Serial.print(tToReturn);
+    Serial.print(F("°C \n\r"));
+  }
 
   return tToReturn;
 }
@@ -452,13 +456,17 @@ int readIgrometro(){
   //digitalWrite(ENABLE_IGROMETRO, HIGH);
   //delay(500);
   int ADCValue = analogRead(IGROMETROPIN);
-  Serial.println("Lettura ADC Igrometro: " + String(ADCValue));
+  if(debug){
+    Serial.println("Lettura ADC Igrometro: " + String(ADCValue));
+  }
   //digitalWrite(ENABLE_IGROMETRO, LOW);
 
   //Mappo il valore letto con i valori minimo e massimo per convertirlo in percentuale
   int hPercValue = map(ADCValue, MIN_ADCREAD, MAX_ADCREAD, 100, 0);
   hPercValue = constrain(hPercValue, 0, 100);
-  Serial.println("Valore percentuale umidità terreno: " + String(hPercValue) + "%");
+  if(debug){
+    Serial.println("Valore percentuale umidità terreno: " + String(hPercValue) + "%");
+  }
   return hPercValue;
 }
 
