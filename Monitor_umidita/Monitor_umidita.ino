@@ -1,3 +1,4 @@
+#include <avr/power.h>
 #include <EEPROM.h>
 
 #include "DHT.h"
@@ -7,8 +8,8 @@
 /************************* SENSORI E ATTUATORI ********************************/
 /******************************************************************************/
 //Digital pin for humidity sensor
-#define DHT1PIN 2     
-#define DHT2PIN 3  
+#define DHT1PIN 2
+#define DHT2PIN 3
 
 #define HEATERPIN 4
 
@@ -21,13 +22,13 @@
 #define FUNRPIN 11
 #define FUNLPIN 12
 
-//Valori estremi restituiti dall'ADC connesso all'igrometro e che identificano 
+//Valori estremi restituiti dall'ADC connesso all'igrometro e che identificano
 //la condizione di massima e minima umidità rilevata
-const int MIN_ADCREAD = 79;  //valore di massima umidità misurato con igrometro immerso in acqua
-const int MAX_ADCREAD = 1023; //valore di minima umidità misurato con igrometro in aria
+const int MIN_ADCREAD = 79;    //valore di massima umidità misurato con igrometro immerso in acqua
+const int MAX_ADCREAD = 1023;  //valore di minima umidità misurato con igrometro in aria
 /* Definizioni globali */
 // Uncomment whatever type you're using!
-#define DHTTYPE DHT11   // DHT 11
+#define DHTTYPE DHT11  // DHT 11
 //#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
 //#define DHTTYPE DHT21   // DHT 21 (AM2301)
 
@@ -35,7 +36,7 @@ const int MAX_ADCREAD = 1023; //valore di minima umidità misurato con igrometro
 DHT dht1(DHT1PIN, DHTTYPE);
 DHT dht2(DHT2PIN, DHTTYPE);
 //Initialize LCD display
-LiquidCrystal_I2C lcd(0x3F, 16, 2); // I2C address 0x3F, 16 column and 2 rows
+LiquidCrystal_I2C lcd(0x3F, 16, 2);  // I2C address 0x3F, 16 column and 2 rows
 
 //Mini JoyStick utilizzato per navigare tra i menù
 const int matrixGrade = 4;
@@ -56,16 +57,16 @@ const String cmdNoCommand = "NC";
 /*********************************** TIMING ***********************************/
 /******************************************************************************/
 //Variabili per la gestione della temporizzazione
-int loopDelay = 100; //valore in ms del delay nella funzione loop
+int loopDelay = 100;  //valore in ms del delay nella funzione loop
 
-const int measureDHTDelay = 2000;  //valore in ms del delay tra due misure di temperatura e umidità dai sensori DHT
+const int measureDHTDelay = 2000;        //valore in ms del delay tra due misure di temperatura e umidità dai sensori DHT
 int measureDHTTiming = measureDHTDelay;  //valore in ms del tempo trascorso dall'ultima misura (lo inizializzo a measureDelay per effettuare una misura già all'avvio)
 
 //L'umidita del terreno diminuisce molto lentamente quindi per osservarne il transitorio è possibile
 //campionare ad intervalli abbastanza ampi. In caso di accensione automatica di un irrigatore, l'umidità
 //varierebbe rapidamente quindi l'intervallo di campionamento dovrà essere basso, in modo da rilevare
 //il prima possibile il reggiungimento della soglia di spegnimento dell'irrigatore
-const int measureIgroDelay = 5000;  //5sec
+const int measureIgroDelay = 5000;       //5sec
 const int measureIgroWaterDelay = 1000;  //1sec
 int measureIgroTiming = measureIgroDelay;
 bool autoWater = false;
@@ -74,8 +75,8 @@ const int readMatrixDisabledDelay = 300;
 int readMatrixDisabledTiming = readMatrixDisabledDelay;
 bool isCmdDetected = false;
 
-const int autoCyclePageDelay = 15000; //15sec
-int autoCyclePageTiming = 0; 
+const int autoCyclePageDelay = 15000;  //15sec
+int autoCyclePageTiming = 0;
 
 const int measureFotoresistenzaDelay = 15000;
 int measureFotoresistenzaTiming = measureFotoresistenzaDelay;
@@ -118,7 +119,7 @@ bool isDay = false;
 #define EEPROMADDR_funROnOffState EEPROMADDR_lightOnOffState + sizeof(int)
 #define EEPROMADDR_funLOnOffState EEPROMADDR_funROnOffState + sizeof(int)
 #define EEPROMADDR_waterOnOffState EEPROMADDR_funLOnOffState + sizeof(int)
-String onOffStateLabel[] = {"AUTO", "ON  ", "OFF "};
+String onOffStateLabel[] = { "AUTO", "ON  ", "OFF " };
 // 0 = AUTO
 // 1 = ON
 // 2 = OFF
@@ -144,12 +145,12 @@ const int idMenuSoglie = 2;
 const int pagineMenuLetture = 2;
 const int pagineOnOffManuale = 2;
 const int pagineMenuSettaggi = 4;
-int paginePerMenu[] = {pagineMenuLetture, pagineOnOffManuale, pagineMenuSettaggi};
-bool showCursorePerMenu[] = {false, true, true};
+int paginePerMenu[] = { pagineMenuLetture, pagineOnOffManuale, pagineMenuSettaggi };
+bool showCursorePerMenu[] = { false, true, true };
 //Indice della pagina (incrementabile con sopra e sotto)
 //0 = pagina principale
 int pagina = 0;
-//Indice della riga in cui si trova il cursore (che si vede nella prima cella 
+//Indice della riga in cui si trova il cursore (che si vede nella prima cella
 //per i menù in cui è possibile selezionare qualcosa)
 //0 = pagina principale
 int cursore = 0;
@@ -160,8 +161,8 @@ const String labelFunRight = "funR";
 const String labelFunLeft = "funL";
 const String labelWater = "water";
 String onOffPerPagina[pagineOnOffManuale][2] = {
-  {labelFunRight, labelFunLeft},
-  {labelLedFullSpectrum, labelWater}
+  { labelFunRight, labelFunLeft },
+  { labelLedFullSpectrum, labelWater }
 };
 
 //menu soglie
@@ -173,16 +174,16 @@ const String labelSoglia_minHSoil = "minHSoil";
 const String labelSoglia_maxHSoil = "maxHSoil";
 const String labelSoglia_dayNight = "dayNight";
 String sogliePerPagina[pagineMenuSettaggi][2] = {
-  {labelSoglia_minTempL, labelSoglia_minTempT}, //Pagina 1
-  {labelSoglia_maxTempL, labelSoglia_maxTempT},  //Pagina 2
-  {labelSoglia_minHSoil, labelSoglia_maxHSoil},  //Pagina 3
-  {labelSoglia_dayNight, ""}  //Pagina 4
+  { labelSoglia_minTempL, labelSoglia_minTempT },  //Pagina 1
+  { labelSoglia_maxTempL, labelSoglia_maxTempT },  //Pagina 2
+  { labelSoglia_minHSoil, labelSoglia_maxHSoil },  //Pagina 3
+  { labelSoglia_dayNight, "" }                     //Pagina 4
 };
 bool editing = false;
 const float deltaIncrDecrSoglia = 0.5f;
 
 //Variabili per la gestione del cambio pagina
-bool mpChanged = false; //controlla se il menù o la pagina sono state cambiate
+bool mpChanged = false;  //controlla se il menù o la pagina sono state cambiate
 /******************************************************************************/
 
 /******************************************************************************/
@@ -217,6 +218,11 @@ const bool debug = false;
 
 //MAIN FUNCTIONS
 void setup() {
+  //Setta il prescaler in modo da allineare la frequenza di funzionamento dello sketch a quella
+  //settata nel bootlooder di (4MHz). La frequenza è stata abbassata per ridurre i consumi ed 
+  //aumentare la durata della batteria.
+  if(F_CPU == 4000000) clock_prescale_set(clock_div_4);
+
   Serial.begin(9600);
 
   //Init sensore di umidità
@@ -228,7 +234,7 @@ void setup() {
   //digitalWrite(ENABLE_IGROMETRO, LOW);
 
   //Init LCD
-  lcd.init(); // initialize the lcd
+  lcd.init();  // initialize the lcd
   lcd.backlight();
   isBacklightOn = true;
 
@@ -237,7 +243,7 @@ void setup() {
   lcd.createChar(1, pacmanBoccaChiusa);
 
   //Init Heater/Light
-  pinMode(HEATERPIN, OUTPUT);           // set pin to input
+  pinMode(HEATERPIN, OUTPUT);  // set pin to input
   digitalWrite(HEATERPIN, LOW);
 
   pinMode(WATERPIN, OUTPUT);
@@ -247,14 +253,14 @@ void setup() {
   digitalWrite(FUNRPIN, LOW);
 
   pinMode(FUNLPIN, OUTPUT);
-  digitalWrite(FUNLPIN, LOW);  
+  digitalWrite(FUNLPIN, LOW);
 
   //Inizializzo i pin digitali utilizzati per la lettura della matrice di pulsanti
-  pinMode(pinUP, INPUT_PULLUP); 
-  pinMode(pinDWN, INPUT_PULLUP); 
-  pinMode(pinLFT, INPUT_PULLUP); 
-  pinMode(pinRIGHT, INPUT_PULLUP); 
-  pinMode(pinMID, INPUT_PULLUP); 
+  pinMode(pinUP, INPUT_PULLUP);
+  pinMode(pinDWN, INPUT_PULLUP);
+  pinMode(pinLFT, INPUT_PULLUP);
+  pinMode(pinRIGHT, INPUT_PULLUP);
+  pinMode(pinMID, INPUT_PULLUP);
 
   //recupero i valori delle soglie salvati in eeprom
   EEPROM.get(EEPROMADDR_minTempL, minTempL);
@@ -279,30 +285,30 @@ void loop() {
   manageTiming();
 
   //se è trascorso il tempo definito, spengo la retroilluminazione dello schermo
-  if(isBacklightOn && turnOffDisplayBacklightTiming >= turnOffDisplayBacklightDelay){
+  if (isBacklightOn && turnOffDisplayBacklightTiming >= turnOffDisplayBacklightDelay) {
     turnOffDisplayBacklightTiming = 0;
     lcd.noBacklight();  //spegne la retroilluminazione dell'LCD
     lcd.noDisplay();
     isBacklightOn = false;
   }
 
-  if(measureFotoresistenzaTiming >= measureFotoresistenzaDelay){
+  if (measureFotoresistenzaTiming >= measureFotoresistenzaDelay) {
     measureFotoresistenzaTiming = 0;
     intLum = analogRead(FOTORESISTENZAPIN);
-    if(intLum > dayNight){
+    if (intLum > dayNight) {
       isDay = true;
-    }else{
+    } else {
       isDay = false;
     }
 
-    if(debug){
+    if (debug) {
       Serial.print("Valore letto dalla fotoresistenza (ACDC): ");
-      Serial.println(intLum); 
-    }   
+      Serial.println(intLum);
+    }
   }
 
   //Leggo dai sensori DHT di temperatura e umidità
-  if(measureDHTTiming >= measureDHTDelay){
+  if (measureDHTTiming >= measureDHTDelay) {
     //azzero il contatore;
     measureDHTTiming = 0;
     //effettuo le misure
@@ -315,38 +321,37 @@ void loop() {
 
   //Leggo dall'igrometro del terreno
   int igroDelay = measureIgroDelay;
-  if(autoWater){
+  if (autoWater) {
     igroDelay = measureIgroWaterDelay;
   }
-  if(measureIgroTiming >= igroDelay){
+  if (measureIgroTiming >= igroDelay) {
     //azzero il contatore;
     measureIgroTiming = 0;
     //effettuo la misura
     h_Soil = readIgrometro();
     enableDisableWater();
   }
-  
+
   //Leggo dal joystick se si sta navigando tra i menù
-  if(readMatrixDisabledTiming >= readMatrixDisabledDelay){
+  if (readMatrixDisabledTiming >= readMatrixDisabledDelay) {
     String cmd = readJoyStick();
-    if(cmd != cmdNoCommand){
-      if(isBacklightOn){
+    if (cmd != cmdNoCommand) {
+      if (isBacklightOn) {
         //se lo schermo è acceso, ogni volta che rilevo un comando azzero il timer per lo spegnimento dell'LCD
         turnOffDisplayBacklightTiming = 0;
-        if(debug){
+        if (debug) {
           Serial.print("Azzero il disabled timing\n\r");
         }
         readMatrixDisabledTiming = 0;
-        if(!editing){
+        if (!editing) {
           manageMenuPageChange(cmd);
         }
-        if(editing){
+        if (editing) {
           manageEditing(cmd);
         }
         detectEditing(cmd);
-      }
-      else{
-        //se quando rilevo un comando il display è spento, 
+      } else {
+        //se quando rilevo un comando il display è spento,
         //sfrutto quel comando non per muovermi tra i menù ma per accendere lo schermo
         //Riaccendendo ritorno alla prima pagina del menù delle letture
         menu = 0;
@@ -360,44 +365,44 @@ void loop() {
   }
 
   //ciclo automaticamente il menù delle letture
-  if(autoCyclePageTiming >= autoCyclePageDelay){
+  if (autoCyclePageTiming >= autoCyclePageDelay) {
     movePage(cmdDOWN);
   }
 
-  if(isBacklightOn){
+  if (isBacklightOn) {
     //il refresh dell'LDC funziona alla frequenza massima (del loop) per essere il più responsive possibile
-    printToLCD(); 
-  } 
+    printToLCD();
+  }
 }
 
 //FUNZIONI AUSILIARIE
 //LETTURE
-float readHumid(){
+float readHumid() {
   float hToReturn = 0;
   // Reading temperature or humidity takes about 250 milliseconds!
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
   float h1 = dht1.readHumidity();
-  float h2 = dht2.readHumidity(); 
+  float h2 = dht2.readHumidity();
   //Controllo eventuali errori di lettura
   bool dht1Fail = isnan(h1);
   bool dht2Fail = isnan(h2);
-  if(dht1Fail && dht2Fail){
-    if(debug){
+  if (dht1Fail && dht2Fail) {
+    if (debug) {
       Serial.print("Errore di lettura umidita");
     }
   }
-  if(!dht1Fail && dht2Fail){
+  if (!dht1Fail && dht2Fail) {
     hToReturn = h1;
   }
-  if(dht1Fail && !dht2Fail){
+  if (dht1Fail && !dht2Fail) {
     hToReturn = h2;
   }
-  if(!dht1Fail && !dht2Fail){
+  if (!dht1Fail && !dht2Fail) {
     hToReturn = (h1 + h2) / 2;
   }
 
   //LOG
-  if(debug){
+  if (debug) {
     Serial.print(F("Humidity1: "));
     Serial.print(h1);
     Serial.print(F("Humidity2: "));
@@ -410,7 +415,7 @@ float readHumid(){
   return hToReturn;
 }
 
-float readTemp(){
+float readTemp() {
   float tToReturn = 0;
   // Reading temperature or humidity takes about 250 milliseconds!
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
@@ -419,23 +424,23 @@ float readTemp(){
   //Controllo eventuali errori di lettura
   bool dht1Fail = isnan(t1);
   bool dht2Fail = isnan(t2);
-  if(dht1Fail && dht2Fail){
-    if(debug){
+  if (dht1Fail && dht2Fail) {
+    if (debug) {
       Serial.print("Errore di lettura temperatura");
     }
   }
-  if(!dht1Fail && dht2Fail){
+  if (!dht1Fail && dht2Fail) {
     tToReturn = t1;
   }
-  if(dht1Fail && !dht2Fail){
+  if (dht1Fail && !dht2Fail) {
     tToReturn = t2;
   }
-  if(!dht1Fail && !dht2Fail){
+  if (!dht1Fail && !dht2Fail) {
     tToReturn = (t1 + t2) / 2;
   }
 
   //LOG
-  if(debug){
+  if (debug) {
     Serial.print(F("Temperature1: "));
     Serial.print(t1);
     Serial.print(F("°C "));
@@ -450,13 +455,13 @@ float readTemp(){
   return tToReturn;
 }
 
-int readIgrometro(){
+int readIgrometro() {
   //Alimento l'igrometro solo quando serve in modo da ridurre il deterioramento
   //della sonda
   //digitalWrite(ENABLE_IGROMETRO, HIGH);
   //delay(500);
   int ADCValue = analogRead(IGROMETROPIN);
-  if(debug){
+  if (debug) {
     Serial.println("Lettura ADC Igrometro: " + String(ADCValue));
   }
   //digitalWrite(ENABLE_IGROMETRO, LOW);
@@ -464,13 +469,13 @@ int readIgrometro(){
   //Mappo il valore letto con i valori minimo e massimo per convertirlo in percentuale
   int hPercValue = map(ADCValue, MIN_ADCREAD, MAX_ADCREAD, 100, 0);
   hPercValue = constrain(hPercValue, 0, 100);
-  if(debug){
+  if (debug) {
     Serial.println("Valore percentuale umidità terreno: " + String(hPercValue) + "%");
   }
   return hPercValue;
 }
 
-String readJoyStick(){
+String readJoyStick() {
   //leggo tutti i pin digitali dai quali mi può arrivare un comando
   int tempCmdUP = digitalRead(pinUP);
   int tempCmdDOWN = digitalRead(pinDWN);
@@ -481,139 +486,139 @@ String readJoyStick(){
   //Visto che la pressione centrale del tasto può mandare a 0 alcuni o tutti gli altri
   //segnali oltre al MID, per controllare se MID è stato premuto verifico anche
   //lo stato degli altri segnali
-  if(tempCmdMID == 0){
-    if(tempCmdUP == 0 && tempCmdDOWN == 0 && tempCmdLEFT == 0 && tempCmdRIGHT == 0){
+  if (tempCmdMID == 0) {
+    if (tempCmdUP == 0 && tempCmdDOWN == 0 && tempCmdLEFT == 0 && tempCmdRIGHT == 0) {
       //Se sono tutti 0 sicuramente sto premendo il tasto centrale
       return cmdOK;
-    }else if(tempCmdUP == 0 || tempCmdDOWN == 0 || tempCmdLEFT == 0 || tempCmdRIGHT == 0){
-      //Se MID è 0 ed anche qualcun altro pin è 0, allora sto premendo il tasto 
+    } else if (tempCmdUP == 0 || tempCmdDOWN == 0 || tempCmdLEFT == 0 || tempCmdRIGHT == 0) {
+      //Se MID è 0 ed anche qualcun altro pin è 0, allora sto premendo il tasto
       //centrale ma in maniera poco energica. Considero comunque come comando OK
       return cmdOK;
-    }else{
+    } else {
       //Se MID è 0 e nessun altro è 0 considero NoCommand. Dai test non è stato osservato
       //che MID vada a 0 da solo. Pertanto viene considerato come un mal funzionamento (per ora).
       return cmdNoCommand;
     }
-  }else{
+  } else {
     //Se MID è diverso da 0, controllo se sto eseguendo qualche altro comando
-    if(tempCmdUP == 0){
+    if (tempCmdUP == 0) {
       return cmdUP;
-    }else if(tempCmdDOWN == 0){
+    } else if (tempCmdDOWN == 0) {
       return cmdDOWN;
-    }else if(tempCmdLEFT == 0){
+    } else if (tempCmdLEFT == 0) {
       return cmdLEFT;
-    }else if(tempCmdRIGHT == 0){
+    } else if (tempCmdRIGHT == 0) {
       return cmdRIGHT;
-    }else{
+    } else {
       return cmdNoCommand;
     }
   }
 }
 
 //ATTUAZIONI
-void enableDisableHeater(){  
-  if(lightOnOffState == 0){
-    if(t_Air < minTempL && isDay){
+void enableDisableHeater() {
+  if (lightOnOffState == 0) {
+    if (t_Air < minTempL && isDay) {
       //se la temperatura è sotto la soglia minima, accendo l'heater
       //UPDATE: accendo l'illuminazione solo se è giorno. In questo modo
       //evito, anche se fa freddo, che la luce si accenda di notte garantendo
       //un ciclo notturno alle piante
       digitalWrite(HEATERPIN, HIGH);
     }
-    if(t_Air > minTempT){
+    if (t_Air > minTempT) {
       //se la temperatura è sopra la soglia massima, spengo l'heater
       digitalWrite(HEATERPIN, LOW);
     }
-  }else if(lightOnOffState == 1){
+  } else if (lightOnOffState == 1) {
     digitalWrite(HEATERPIN, HIGH);
-  }else if(lightOnOffState == 2){
+  } else if (lightOnOffState == 2) {
     digitalWrite(HEATERPIN, LOW);
   }
 }
 
-void enableDisableFuns(){  
-  if(funROnOffState == 0){
-    if(t_Air > maxTempT){
+void enableDisableFuns() {
+  if (funROnOffState == 0) {
+    if (t_Air > maxTempT) {
       //se la temperatura è sotto la soglia minima, accendo l'heater
       //UPDATE: accendo l'illuminazione solo se è giorno. In questo modo
       //evito, anche se fa freddo, che la luce si accenda di notte garantendo
       //un ciclo notturno alle piante
       digitalWrite(FUNRPIN, HIGH);
     }
-    if(t_Air < maxTempL){
+    if (t_Air < maxTempL) {
       //se la temperatura è sopra la soglia massima, spengo l'heater
       digitalWrite(FUNRPIN, LOW);
     }
-  }else if(funROnOffState == 1){
+  } else if (funROnOffState == 1) {
     digitalWrite(FUNRPIN, HIGH);
-  }else if(funROnOffState == 2){
+  } else if (funROnOffState == 2) {
     digitalWrite(FUNRPIN, LOW);
   }
 
-  if(funLOnOffState == 0){
-    if(t_Air > maxTempT){
+  if (funLOnOffState == 0) {
+    if (t_Air > maxTempT) {
       //se la temperatura è sotto la soglia minima, accendo l'heater
       //UPDATE: accendo l'illuminazione solo se è giorno. In questo modo
       //evito, anche se fa freddo, che la luce si accenda di notte garantendo
       //un ciclo notturno alle piante
       digitalWrite(FUNLPIN, HIGH);
     }
-    if(t_Air < maxTempL){
+    if (t_Air < maxTempL) {
       //se la temperatura è sopra la soglia massima, spengo l'heater
       digitalWrite(FUNLPIN, LOW);
     }
-  }else if(funLOnOffState == 1){
+  } else if (funLOnOffState == 1) {
     digitalWrite(FUNLPIN, HIGH);
-  }else if(funLOnOffState == 2){
+  } else if (funLOnOffState == 2) {
     digitalWrite(FUNLPIN, LOW);
   }
 }
 
-void enableDisableWater(){
-  if(waterOnOffState == 0){
-    if(h_Soil < minHSoil){
+void enableDisableWater() {
+  if (waterOnOffState == 0) {
+    if (h_Soil < minHSoil) {
       digitalWrite(WATERPIN, HIGH);
     }
-    if(t_Air >= maxHSoil){
+    if (t_Air >= maxHSoil) {
       digitalWrite(WATERPIN, LOW);
     }
-  }else if(waterOnOffState == 1){
+  } else if (waterOnOffState == 1) {
     digitalWrite(WATERPIN, HIGH);
-  }else if(waterOnOffState == 2){
+  } else if (waterOnOffState == 2) {
     digitalWrite(WATERPIN, LOW);
   }
 }
 
-void printToLCD(){
+void printToLCD() {
   //Solo se il menù o la pagina sono stati cambiati
-  if(mpChanged){
+  if (mpChanged) {
     //pulisco lo schermo
     lcd.clear();
     mpChanged = false;
   }
 
   //Se il menù selezionato prevede il cursore lo scrivo
-  if(showCursorePerMenu[menu]){
+  if (showCursorePerMenu[menu]) {
     lcd.setCursor(0, cursore);
-    if(editing){
+    if (editing) {
       lcd.write(byte(1));
-    }else{
+    } else {
       lcd.write(byte(0));
     }
-    if(cursore == 0){
+    if (cursore == 0) {
       lcd.setCursor(0, cursore + 1);
       lcd.print(" ");
-    }else if(cursore == 1){
+    } else if (cursore == 1) {
       lcd.setCursor(0, cursore - 1);
       lcd.print(" ");
-    }    
+    }
   }
-  
+
   switch (menu) {
     case 0:
       printMenu0();
       break;
-    case 1: 
+    case 1:
       printMenu1();
       break;
     case 2:
@@ -629,187 +634,187 @@ void printToLCD(){
 }
 
 //Menù di visualizzazione delle misure
-void printMenu0(){
+void printMenu0() {
   //Menù 0: visualizzazione delle misure
   //        0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
   //riga0:    t e m p : x x . x x  °  C     L  o
   //riga1:    u m i d : x x . x x  %
-  if(pagina == 0){
+  if (pagina == 0) {
     //Intestazione righe indicazione della grandezza rappresentata
-    lcd.setCursor(1, 0);        
+    lcd.setCursor(1, 0);
     lcd.print("tAir:");
     lcd.print(t_Air);
     lcd.print((char)223);
-    lcd.print("C");          
-    lcd.setCursor(1, 1);        
-    lcd.print("hAir:"); 
-    lcd.print(h_Air);    
-    lcd.print("%");       
+    lcd.print("C");
+    lcd.setCursor(1, 1);
+    lcd.print("hAir:");
+    lcd.print(h_Air);
+    lcd.print("%");
     //Indicatori violazione soglia
     //Temperatura
-    if(t_Air < minTempL){
+    if (t_Air < minTempL) {
       lcd.setCursor(14, 0);
       lcd.print("Lo");
     }
-    if(t_Air > maxTempT){
+    if (t_Air > maxTempT) {
       lcd.setCursor(14, 0);
       lcd.print("Hi");
     }
-    if(t_Air >= minTempL && t_Air <= maxTempT){
+    if (t_Air >= minTempL && t_Air <= maxTempT) {
       lcd.setCursor(14, 0);
       lcd.print("  ");
     }
-  }else if(pagina == 1){
-    lcd.setCursor(1, 0);        
-    lcd.print("hSoil:"); 
-    lcd.print(float(h_Soil));    
+  } else if (pagina == 1) {
+    lcd.setCursor(1, 0);
+    lcd.print("hSoil:");
+    lcd.print(float(h_Soil));
     lcd.print("%");
-    lcd.setCursor(1, 1);        
-    lcd.print("I_ext:"); 
+    lcd.setCursor(1, 1);
+    lcd.print("I_ext:");
     lcd.print(intLum);
-  }else if(pagina == 2){
-    lcd.setCursor(1, 0);        
+  } else if (pagina == 2) {
+    lcd.setCursor(1, 0);
     lcd.print("Menu1,pagina3");
-  }  
+  }
 }
 
 //Menù accensione spegnimento manuali
-void printMenu1(){
+void printMenu1() {
   //Menù 2: accensione spegnimento manuale
   //        0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
   //riga0:  > f u n R   A U T O
   //riga1:    f u n L   A U T O
-  lcd.setCursor(1, 0); 
+  lcd.setCursor(1, 0);
   lcd.print(onOffPerPagina[pagina][0]);
-  lcd.setCursor(1, 1); 
+  lcd.setCursor(1, 1);
   lcd.print(onOffPerPagina[pagina][1]);
-  if(pagina == 0){
+  if (pagina == 0) {
     lcd.setCursor(onOffPerPagina[pagina][0].length() + 2, 0);
     lcd.print(onOffStateLabel[funROnOffState]);
-    lcd.setCursor(onOffPerPagina[pagina][1].length() + 2, 1);        
+    lcd.setCursor(onOffPerPagina[pagina][1].length() + 2, 1);
     lcd.print(onOffStateLabel[funLOnOffState]);
-  }else if(pagina == 1){
-    lcd.setCursor(onOffPerPagina[pagina][0].length() + 2, 0);   
+  } else if (pagina == 1) {
+    lcd.setCursor(onOffPerPagina[pagina][0].length() + 2, 0);
     lcd.print(onOffStateLabel[lightOnOffState]);
-    lcd.setCursor(onOffPerPagina[pagina][1].length() + 2, 1);        
+    lcd.setCursor(onOffPerPagina[pagina][1].length() + 2, 1);
     lcd.print(onOffStateLabel[waterOnOffState]);
   }
 }
 
 //Menù per i settaggi delle soglie
-void printMenu2(){
+void printMenu2() {
   //Menù 1: settaggio soglie
   //        0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
-  //riga0:  > m i n T e m p L : x  x  .  x  x 
-  //riga1:    m i n T e m p T : x  x  .  x  x 
-  lcd.setCursor(1, 0); 
+  //riga0:  > m i n T e m p L : x  x  .  x  x
+  //riga1:    m i n T e m p T : x  x  .  x  x
+  lcd.setCursor(1, 0);
   lcd.print(sogliePerPagina[pagina][0]);
-  lcd.setCursor(1, 1); 
+  lcd.setCursor(1, 1);
   lcd.print(sogliePerPagina[pagina][1]);
-  if(pagina == 0){
-    lcd.setCursor(10, 0);        
+  if (pagina == 0) {
+    lcd.setCursor(10, 0);
     lcd.print(minTempL);
-    lcd.setCursor(10, 1);        
+    lcd.setCursor(10, 1);
     lcd.print(minTempT);
-  }else if(pagina == 1){
-    lcd.setCursor(10, 0);        
+  } else if (pagina == 1) {
+    lcd.setCursor(10, 0);
     lcd.print(maxTempL);
-    lcd.setCursor(10, 1);        
+    lcd.setCursor(10, 1);
     lcd.print(maxTempT);
-  }else if(pagina == 2){    
-    lcd.setCursor(10, 0);        
+  } else if (pagina == 2) {
+    lcd.setCursor(10, 0);
     lcd.print(minHSoil);
-    lcd.setCursor(10, 1);        
+    lcd.setCursor(10, 1);
     lcd.print(maxHSoil);
-  }else if(pagina == 3){
-    lcd.setCursor(10, 0);        
+  } else if (pagina == 3) {
+    lcd.setCursor(10, 0);
     lcd.print(dayNight);
   }
 }
 
-void manageMenuPageChange(String cmd){
-  if(cmd == cmdRIGHT || cmd == cmdLEFT){
+void manageMenuPageChange(String cmd) {
+  if (cmd == cmdRIGHT || cmd == cmdLEFT) {
     moveMenu(cmd);
     mpChanged = true;
   }
-  if(cmd == cmdUP || cmd == cmdDOWN){
+  if (cmd == cmdUP || cmd == cmdDOWN) {
     //se il cursore è presente devo muoverlo in alto o in basso
     bool changePage = false;
-    if(showCursorePerMenu[menu]){
+    if (showCursorePerMenu[menu]) {
       changePage = moveCursor(cmd);
-    }else{
+    } else {
       changePage = true;
     }
     //Decido se cambiare pagina in base allo spostamento del cursore
     //ed in base al numero di pagine definito per quel menù
-    if(changePage){
+    if (changePage) {
       movePage(cmd);
       changePage = false;
     }
   }
 }
 
-void detectEditing(String cmd){
-  if(cmd == cmdOK && showCursorePerMenu[menu]){
+void detectEditing(String cmd) {
+  if (cmd == cmdOK && showCursorePerMenu[menu]) {
     editing = !editing;
-    if(menu == idMenuOnOff){
-      if(editing){
-        if(onOffPerPagina[pagina][cursore] == labelLedFullSpectrum){
+    if (menu == idMenuOnOff) {
+      if (editing) {
+        if (onOffPerPagina[pagina][cursore] == labelLedFullSpectrum) {
           EEPROM.get(EEPROMADDR_lightOnOffState, lightOnOffState);
-        }else if(onOffPerPagina[pagina][cursore] == labelFunRight){
+        } else if (onOffPerPagina[pagina][cursore] == labelFunRight) {
           EEPROM.get(EEPROMADDR_funROnOffState, funROnOffState);
-        }else if(onOffPerPagina[pagina][cursore] == labelFunLeft){
+        } else if (onOffPerPagina[pagina][cursore] == labelFunLeft) {
           EEPROM.get(EEPROMADDR_funLOnOffState, funLOnOffState);
-        }else if(onOffPerPagina[pagina][cursore] == labelWater){
+        } else if (onOffPerPagina[pagina][cursore] == labelWater) {
           EEPROM.get(EEPROMADDR_waterOnOffState, waterOnOffState);
         }
-      }else{
-        if(onOffPerPagina[pagina][cursore] == labelLedFullSpectrum){
+      } else {
+        if (onOffPerPagina[pagina][cursore] == labelLedFullSpectrum) {
           EEPROM.put(EEPROMADDR_lightOnOffState, lightOnOffState);
-        }else if(onOffPerPagina[pagina][cursore] == labelFunRight){
+        } else if (onOffPerPagina[pagina][cursore] == labelFunRight) {
           EEPROM.put(EEPROMADDR_funROnOffState, funROnOffState);
-        }else if(onOffPerPagina[pagina][cursore] == labelFunLeft){
+        } else if (onOffPerPagina[pagina][cursore] == labelFunLeft) {
           EEPROM.put(EEPROMADDR_funLOnOffState, funLOnOffState);
-        }else if(onOffPerPagina[pagina][cursore] == labelWater){
+        } else if (onOffPerPagina[pagina][cursore] == labelWater) {
           EEPROM.put(EEPROMADDR_waterOnOffState, waterOnOffState);
         }
       }
-    }else if(menu == idMenuSoglie){
-      if(editing){
+    } else if (menu == idMenuSoglie) {
+      if (editing) {
         //ho abilitato l'editing delle soglie, quindi recupero dalla EEPROM
-        //il valore salvato e lo salvo nella variabile locale 
+        //il valore salvato e lo salvo nella variabile locale
         //per essere editato
-        if(sogliePerPagina[pagina][cursore] == labelSoglia_minTempL){
+        if (sogliePerPagina[pagina][cursore] == labelSoglia_minTempL) {
           EEPROM.get(EEPROMADDR_minTempL, minTempL);
-        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_minTempT){
+        } else if (sogliePerPagina[pagina][cursore] == labelSoglia_minTempT) {
           EEPROM.get(EEPROMADDR_minTempT, minTempT);
-        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxTempL){
+        } else if (sogliePerPagina[pagina][cursore] == labelSoglia_maxTempL) {
           EEPROM.get(EEPROMADDR_maxTempL, maxTempL);
-        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxTempT){
+        } else if (sogliePerPagina[pagina][cursore] == labelSoglia_maxTempT) {
           EEPROM.get(EEPROMADDR_maxTempT, maxTempT);
-        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_minHSoil){
+        } else if (sogliePerPagina[pagina][cursore] == labelSoglia_minHSoil) {
           EEPROM.get(EEPROMADDR_minHSoil, minHSoil);
-        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxHSoil){
+        } else if (sogliePerPagina[pagina][cursore] == labelSoglia_maxHSoil) {
           EEPROM.get(EEPROMADDR_maxHSoil, maxHSoil);
-        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_dayNight){
+        } else if (sogliePerPagina[pagina][cursore] == labelSoglia_dayNight) {
           EEPROM.get(EEPROMADDR_dayNight, dayNight);
         }
-      }else{
+      } else {
         //ho disabilitato l'editing delle soglie, quindi salvo il valore
         //della variabile locale in EEPROM
-        if(sogliePerPagina[pagina][cursore] == labelSoglia_minTempL){
+        if (sogliePerPagina[pagina][cursore] == labelSoglia_minTempL) {
           EEPROM.put(EEPROMADDR_minTempL, minTempL);
-        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_minTempT){
+        } else if (sogliePerPagina[pagina][cursore] == labelSoglia_minTempT) {
           EEPROM.put(EEPROMADDR_minTempT, minTempT);
-        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxTempL){
+        } else if (sogliePerPagina[pagina][cursore] == labelSoglia_maxTempL) {
           EEPROM.put(EEPROMADDR_maxTempL, maxTempL);
-        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxTempT){
+        } else if (sogliePerPagina[pagina][cursore] == labelSoglia_maxTempT) {
           EEPROM.put(EEPROMADDR_maxTempT, maxTempT);
-        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_minHSoil){
+        } else if (sogliePerPagina[pagina][cursore] == labelSoglia_minHSoil) {
           EEPROM.put(EEPROMADDR_minHSoil, minHSoil);
-        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxHSoil){
+        } else if (sogliePerPagina[pagina][cursore] == labelSoglia_maxHSoil) {
           EEPROM.put(EEPROMADDR_maxHSoil, maxHSoil);
-        }else if(sogliePerPagina[pagina][cursore] == labelSoglia_dayNight){
+        } else if (sogliePerPagina[pagina][cursore] == labelSoglia_dayNight) {
           EEPROM.put(EEPROMADDR_dayNight, dayNight);
         }
       }
@@ -817,126 +822,126 @@ void detectEditing(String cmd){
   }
 }
 
-void manageEditing(String cmd){
-  if(menu == idMenuOnOff){
+void manageEditing(String cmd) {
+  if (menu == idMenuOnOff) {
     editOnOff(cmd);
-  }else if(menu == idMenuSoglie){
+  } else if (menu == idMenuSoglie) {
     editSoglie(cmd);
   }
 }
 
-void editOnOff(String cmd){  
-  if(onOffPerPagina[pagina][cursore] == labelLedFullSpectrum){
-    if(cmd == cmdDOWN){
-      if(lightOnOffState < (nPossibiliStati - 1)){
+void editOnOff(String cmd) {
+  if (onOffPerPagina[pagina][cursore] == labelLedFullSpectrum) {
+    if (cmd == cmdDOWN) {
+      if (lightOnOffState < (nPossibiliStati - 1)) {
         lightOnOffState++;
-      }else if(lightOnOffState == (nPossibiliStati - 1)){
+      } else if (lightOnOffState == (nPossibiliStati - 1)) {
         lightOnOffState = 0;
       }
     }
-    if(cmd == cmdUP){
-      if(lightOnOffState > 0){
+    if (cmd == cmdUP) {
+      if (lightOnOffState > 0) {
         lightOnOffState--;
-      }else if(lightOnOffState == 0){
+      } else if (lightOnOffState == 0) {
         lightOnOffState = nPossibiliStati - 1;
       }
     }
-  }else if(onOffPerPagina[pagina][cursore] == labelFunRight){
-    if(cmd == cmdDOWN){
-      if(funROnOffState < (nPossibiliStati - 1)){
+  } else if (onOffPerPagina[pagina][cursore] == labelFunRight) {
+    if (cmd == cmdDOWN) {
+      if (funROnOffState < (nPossibiliStati - 1)) {
         funROnOffState++;
-      }else if(funROnOffState == (nPossibiliStati - 1)){
+      } else if (funROnOffState == (nPossibiliStati - 1)) {
         funROnOffState = 0;
       }
     }
-    if(cmd == cmdUP){
-      if(funROnOffState > 0){
+    if (cmd == cmdUP) {
+      if (funROnOffState > 0) {
         funROnOffState--;
-      }else if(funROnOffState == 0){
+      } else if (funROnOffState == 0) {
         funROnOffState = nPossibiliStati - 1;
       }
     }
-  }else if(onOffPerPagina[pagina][cursore] == labelFunLeft){
-    if(cmd == cmdDOWN){
-      if(funLOnOffState < (nPossibiliStati - 1)){
+  } else if (onOffPerPagina[pagina][cursore] == labelFunLeft) {
+    if (cmd == cmdDOWN) {
+      if (funLOnOffState < (nPossibiliStati - 1)) {
         funLOnOffState++;
-      }else if(funLOnOffState == (nPossibiliStati - 1)){
+      } else if (funLOnOffState == (nPossibiliStati - 1)) {
         funLOnOffState = 0;
       }
     }
-    if(cmd == cmdUP){
-      if(funLOnOffState > 0){
+    if (cmd == cmdUP) {
+      if (funLOnOffState > 0) {
         funLOnOffState--;
-      }else if(funLOnOffState == 0){
+      } else if (funLOnOffState == 0) {
         funLOnOffState = nPossibiliStati - 1;
       }
     }
-  }else if(onOffPerPagina[pagina][cursore] == labelWater){
-    if(cmd == cmdDOWN){
-      if(waterOnOffState < (nPossibiliStati - 1)){
+  } else if (onOffPerPagina[pagina][cursore] == labelWater) {
+    if (cmd == cmdDOWN) {
+      if (waterOnOffState < (nPossibiliStati - 1)) {
         waterOnOffState++;
-      }else if(waterOnOffState == (nPossibiliStati - 1)){
+      } else if (waterOnOffState == (nPossibiliStati - 1)) {
         waterOnOffState = 0;
       }
     }
-    if(cmd == cmdUP){
-      if(waterOnOffState > 0){
+    if (cmd == cmdUP) {
+      if (waterOnOffState > 0) {
         waterOnOffState--;
-      }else if(waterOnOffState == 0){
+      } else if (waterOnOffState == 0) {
         waterOnOffState = nPossibiliStati - 1;
       }
     }
   }
 }
 
-void editSoglie(String cmd){  
+void editSoglie(String cmd) {
   float valoreDaSommare = 0.00f;
-  if(cmd == cmdUP){
+  if (cmd == cmdUP) {
     //Sto incrementando il valore
     valoreDaSommare += deltaIncrDecrSoglia;
-  }else if(cmd == cmdDOWN){
+  } else if (cmd == cmdDOWN) {
     //Sto decrementando il valore
     valoreDaSommare -= deltaIncrDecrSoglia;
   }
-  if(sogliePerPagina[pagina][cursore] == labelSoglia_minTempL){
+  if (sogliePerPagina[pagina][cursore] == labelSoglia_minTempL) {
     minTempL += valoreDaSommare;
-  }else if(sogliePerPagina[pagina][cursore] == labelSoglia_minTempT){
+  } else if (sogliePerPagina[pagina][cursore] == labelSoglia_minTempT) {
     minTempT += valoreDaSommare;
-  }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxTempL){
+  } else if (sogliePerPagina[pagina][cursore] == labelSoglia_maxTempL) {
     maxTempL += valoreDaSommare;
-  }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxTempT){
+  } else if (sogliePerPagina[pagina][cursore] == labelSoglia_maxTempT) {
     maxTempT += valoreDaSommare;
-  }else if(sogliePerPagina[pagina][cursore] == labelSoglia_minHSoil){
+  } else if (sogliePerPagina[pagina][cursore] == labelSoglia_minHSoil) {
     minHSoil += valoreDaSommare;
-  }else if(sogliePerPagina[pagina][cursore] == labelSoglia_maxHSoil){
+  } else if (sogliePerPagina[pagina][cursore] == labelSoglia_maxHSoil) {
     maxHSoil += valoreDaSommare;
-  }else if(sogliePerPagina[pagina][cursore] == labelSoglia_dayNight){
-    dayNight += int(valoreDaSommare*2);
+  } else if (sogliePerPagina[pagina][cursore] == labelSoglia_dayNight) {
+    dayNight += int(valoreDaSommare * 2);
   }
 }
 
 //Sposta il cursore in alto o un basso e restituisce un bool
 //che indica se bisogna anche cambiare pagina
-bool moveCursor(String upDown){
-  //LCD 
+bool moveCursor(String upDown) {
+  //LCD
   //cursore 0 ***************
   //cursore 1 ***************
   bool changePage = false;
-  if(upDown == cmdUP){
-    if(cursore == 0){
+  if (upDown == cmdUP) {
+    if (cursore == 0) {
       //se ho premuto UP e il cursore è già a 0 lo porto a 1
       cursore = 1;
       //e devo cambiare pagina (andando a quella precedente)
       changePage = true;
-    }else if(cursore == 1){
+    } else if (cursore == 1) {
       //se il cursore era a 1, lo mando a 0 ma non cambio pagina
       cursore = 0;
     }
-  }else if(upDown == cmdDOWN){
-    if(cursore == 0){
+  } else if (upDown == cmdDOWN) {
+    if (cursore == 0) {
       //se ho premuto DOWN e il cursore è a 0 lo porto a 1 ma non cambio pagina
       cursore = 1;
-    }else if(cursore == 1){
+    } else if (cursore == 1) {
       //se il cursore era a 1, lo mando a 0
       cursore = 0;
       //e devo cambiare pagina (andando a quella successiva)
@@ -946,25 +951,25 @@ bool moveCursor(String upDown){
   return changePage;
 }
 
-void movePage(String cmd){
+void movePage(String cmd) {
   //recupero il numero di pagine disponibili per quel menù
   int previousPage = pagina;
   int maxPagina = paginePerMenu[menu];
-  if(cmd == cmdDOWN){
-    if(pagina < (maxPagina - 1)){
+  if (cmd == cmdDOWN) {
+    if (pagina < (maxPagina - 1)) {
       pagina++;
-    }else if(pagina == (maxPagina - 1)){
+    } else if (pagina == (maxPagina - 1)) {
       pagina = 0;
     }
   }
-  if(cmd == cmdUP){
-    if(pagina > 0){
+  if (cmd == cmdUP) {
+    if (pagina > 0) {
       pagina--;
-    }else if(pagina == 0){
-      pagina = maxPagina - 1; //perchè l'indice di pagina è zero based, ma il numero di pagine parte da 1
+    } else if (pagina == 0) {
+      pagina = maxPagina - 1;  //perchè l'indice di pagina è zero based, ma il numero di pagine parte da 1
     }
   }
-  if(previousPage != pagina){
+  if (previousPage != pagina) {
     mpChanged = true;
     //a prescindere in quale menù mi trovo, se sto cambiando pagina azzero il timer del cambio pagina automatico
     //se sono in menù diversi dalle letture non cambia niente, altrimenti il conteggio si azzera ad ogni mia azione
@@ -973,18 +978,18 @@ void movePage(String cmd){
   }
 }
 
-void moveMenu(String cmd){
-  if(cmd == cmdRIGHT){
-    if(menu < (nMenu - 1)){
+void moveMenu(String cmd) {
+  if (cmd == cmdRIGHT) {
+    if (menu < (nMenu - 1)) {
       menu++;
-    }else if(menu == (nMenu - 1)){
+    } else if (menu == (nMenu - 1)) {
       menu = 0;
     }
   }
-  if(cmd == cmdLEFT){
-    if(menu > 0){
+  if (cmd == cmdLEFT) {
+    if (menu > 0) {
       menu--;
-    }else if(menu == 0){
+    } else if (menu == 0) {
       menu = nMenu - 1;
     }
   }
@@ -993,20 +998,20 @@ void moveMenu(String cmd){
   cursore = 0;
 }
 
-void manageTiming(){
+void manageTiming() {
   measureDHTTiming += loopDelay;
-  if(readMatrixDisabledTiming < readMatrixDisabledDelay){
+  if (readMatrixDisabledTiming < readMatrixDisabledDelay) {
     readMatrixDisabledTiming += loopDelay;
   }
   measureIgroTiming += loopDelay;
-  if(menu == idMenuLetture && isBacklightOn){
+  if (menu == idMenuLetture && isBacklightOn) {
     autoCyclePageTiming += loopDelay;
-  }else{
+  } else {
     autoCyclePageTiming = 0;
   }
   measureFotoresistenzaTiming += loopDelay;
-  if(isBacklightOn){
+  if (isBacklightOn) {
     //incremento il timer per capire quando spegnere l'LCD solo se lo schermo è acceso
-    turnOffDisplayBacklightTiming += loopDelay; 
+    turnOffDisplayBacklightTiming += loopDelay;
   }
 }
